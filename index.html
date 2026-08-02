@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Postava · Pomodoro con postura</title>
+  <meta name="description" content="Temporizador Pomodoro con corrección de postura en tiempo real. Todo se procesa en tu navegador." />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    /* Resuelve el tema antes del primer pintado para que no parpadee.
+       La preferencia guardada puede ser "light", "dark" o "auto". */
+    (() => {
+      let pref = "auto";
+      try { pref = localStorage.getItem("postava.theme") || "auto"; } catch {}
+      const dark = pref === "dark" ||
+        (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.dataset.themePref = pref;
+    })();
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+
+  <div class="shell">
+
+    <!-- ───────────────────────── Navegación ───────────────────────── -->
+    <header class="nav">
+      <div class="nav-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="6" r="3" />
+            <path d="M5 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2" />
+          </svg>
+        </span>
+        <span class="brand-name">Postava</span>
+      </div>
+
+      <p class="nav-tagline">Pomodoro con corrección de postura</p>
+
+      <span class="nav-pill">
+        <span class="pill-dot" aria-hidden="true"></span>
+        100&nbsp;% en tu navegador
+      </span>
+
+      <div class="theme-switch" role="group" aria-label="Tema de la interfaz">
+        <button type="button" class="theme-opt" data-theme-set="light"
+                aria-pressed="false" title="Tema claro">
+          <span class="sr-only">Tema claro</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2" />
+            <path d="M12 2.6v2.2M12 19.2v2.2M3.5 12H1.3M22.7 12h-2.2M5.9 5.9 4.4 4.4M19.6 19.6l-1.5-1.5M18.1 5.9l1.5-1.5M4.4 19.6l1.5-1.5" />
+          </svg>
+        </button>
+
+        <button type="button" class="theme-opt" data-theme-set="auto"
+                aria-pressed="true" title="Seguir al sistema">
+          <span class="sr-only">Seguir al sistema</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.6" />
+            <path d="M12 3.4a8.6 8.6 0 0 1 0 17.2z" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+
+        <button type="button" class="theme-opt" data-theme-set="dark"
+                aria-pressed="false" title="Tema oscuro">
+          <span class="sr-only">Tema oscuro</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.5 14.5A8.6 8.6 0 0 1 9.5 3.5a8.6 8.6 0 1 0 11 11z" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="main" class="layout">
+
+      <!-- ───────────────────────── Sesión ───────────────────────── -->
+      <div class="col col-session">
+        <article class="card card-timer">
+          <header class="card-head">
+            <p class="eyebrow" id="phaseLabel">Enfoque</p>
+            <span class="tag" id="cycleLabel">Sesión 1</span>
+          </header>
+
+          <div class="dial">
+            <svg class="dial-ring" viewBox="0 0 280 280" aria-hidden="true">
+              <circle class="ring-track" cx="140" cy="140" r="120" />
+              <circle id="ringProgress" class="ring-value" cx="140" cy="140" r="120" />
+            </svg>
+            <div class="dial-center">
+              <div id="timerDisplay" class="dial-time" role="timer" aria-live="off">25:00</div>
+              <div id="timerHint" class="dial-hint">listo para empezar</div>
+            </div>
+          </div>
+
+          <div class="presets" role="group" aria-label="Duraciones rápidas">
+            <button class="chip" data-minutes="25">25<span class="unit">min</span></button>
+            <button class="chip" data-minutes="50">50<span class="unit">min</span></button>
+            <button class="chip" data-minutes="60">60<span class="unit">min</span></button>
+            <button class="chip" data-minutes="90">90<span class="unit">min</span></button>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">Enfoque</span>
+              <span class="field-input">
+                <input id="focusMins" type="number" min="1" max="180" step="1" value="25" />
+                <span class="field-unit">min</span>
+              </span>
+            </label>
+            <label class="field">
+              <span class="field-label">Descanso</span>
+              <span class="field-input">
+                <input id="breakMins" type="number" min="1" max="60" step="1" value="5" />
+                <span class="field-unit">min</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="btnStart" class="btn btn-primary btn-wide">Iniciar</button>
+            <button id="btnSkip" class="btn">Saltar fase</button>
+            <button id="btnReset" class="btn btn-quiet">Reiniciar</button>
+          </div>
+
+          <p class="shortcuts">
+            <kbd>Espacio</kbd> iniciar o pausar
+            <span class="sep" aria-hidden="true">·</span>
+            <kbd>C</kbd> calibrar
+          </p>
+        </article>
+
+        <article class="card card-steps">
+          <p class="eyebrow">Cómo empezar</p>
+          <ol class="steps">
+            <li class="step">
+              <span class="step-num">1</span>
+              <span class="step-body">
+                <strong>Enciende la cámara</strong>
+                <span>Se activa sola al iniciar el temporizador. El vídeo no sale de tu equipo.</span>
+              </span>
+            </li>
+            <li class="step">
+              <span class="step-num">2</span>
+              <span class="step-body">
+                <strong>Calibra tu postura</strong>
+                <span>Siéntate como quieres estar durante la sesión y pulsa «Calibrar». Esa será tu referencia.</span>
+              </span>
+            </li>
+            <li class="step">
+              <span class="step-num">3</span>
+              <span class="step-body">
+                <strong>Trabaja tranquilo</strong>
+                <span>Solo te aviso si te desvías de forma continuada; un desliz de un segundo no cuenta.</span>
+              </span>
+            </li>
+          </ol>
+        </article>
+      </div>
+
+      <!-- ───────────────────────── Sensor ───────────────────────── -->
+      <div class="col col-sensor">
+
+        <article class="card card-posture">
+          <header class="card-head">
+            <p class="eyebrow">Postura</p>
+            <span id="postureBadge" class="badge badge-idle">Sin monitorizar</span>
+          </header>
+
+          <div id="stage" class="stage" data-hide-video="false">
+            <video id="video" playsinline autoplay muted></video>
+            <canvas id="overlay"></canvas>
+
+            <div id="camPlaceholder" class="placeholder">
+              <span class="placeholder-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M15 10.5V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3.5l7 4.5V6z" />
+                </svg>
+              </span>
+              <p class="placeholder-title">La cámara está apagada</p>
+              <p class="placeholder-note">Se enciende sola al iniciar el temporizador. Nada sale de tu equipo.</p>
+            </div>
+
+            <div id="calibOverlay" class="calib-overlay" hidden>
+              <div class="calib-frame"></div>
+              <div class="calib-bar">
+                <span class="calib-count" id="calibCount">3</span>
+                <span class="calib-text">
+                  <strong>Calibrando</strong>
+                  <span id="calibHint">Siéntate recto y mira a la pantalla</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hold-bar" aria-hidden="true">
+            <div id="holdFill" class="hold-fill"></div>
+          </div>
+
+          <p id="postureMsg" class="posture-msg">Calibra tu postura para empezar a monitorizar.</p>
+
+          <div class="actions">
+            <button id="btnCalibrate" class="btn btn-primary btn-wide">Calibrar postura</button>
+            <button id="btnCamera" class="btn">Encender cámara</button>
+          </div>
+        </article>
+
+        <details class="card card-settings settings">
+          <summary>
+            <span>Ajustes de detección</span>
+            <span class="chevron" aria-hidden="true"></span>
+          </summary>
+
+          <div class="settings-body">
+            <label class="range">
+              <span class="range-head">
+                <span class="field-label">Tolerancia</span>
+                <b id="tolValue">normal</b>
+              </span>
+              <input id="tolerance" type="range" min="0.6" max="1.8" step="0.1" value="1" />
+            </label>
+
+            <label class="range">
+              <span class="range-head">
+                <span class="field-label">Margen antes del aviso</span>
+                <b id="delayValue">5 s</b>
+              </span>
+              <input id="delaySeconds" type="range" min="2" max="30" step="1" value="5" />
+            </label>
+
+            <div class="switches">
+              <label class="switch">
+                <input id="soundToggle" type="checkbox" checked />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">Sonido de alerta</span>
+              </label>
+
+              <label class="switch">
+                <input id="skeletonToggle" type="checkbox" checked />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">Puntos y esqueleto</span>
+              </label>
+
+              <label class="switch">
+                <input id="hudToggle" type="checkbox" checked />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">Panel de métricas en vivo</span>
+              </label>
+
+              <label class="switch">
+                <input id="hideVideoToggle" type="checkbox" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">Modo mapa: ocultar la imagen</span>
+              </label>
+
+              <label class="switch">
+                <input id="camOnlyRunning" type="checkbox" checked />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">Apagar la cámara al pausar</span>
+              </label>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- ───────────────────────── Estadísticas ───────────────────────── -->
+      <dl class="stats">
+        <div class="stat">
+          <dt>Postura correcta</dt>
+          <dd id="goodPct">—</dd>
+        </div>
+        <div class="stat">
+          <dt>Avisos</dt>
+          <dd id="alertCount">0</dd>
+        </div>
+        <div class="stat">
+          <dt>Sesiones completadas</dt>
+          <dd id="focusDone">0</dd>
+        </div>
+      </dl>
+    </main>
+
+    <footer class="footer">
+      <p id="engineStatus" class="engine">Cargando modelo de visión…</p>
+      <p class="privacy">El vídeo nunca sale de tu dispositivo: el modelo se ejecuta en tu navegador.</p>
+    </footer>
+  </div>
+
+  <div id="alertBanner" class="alert-banner" hidden role="status" aria-live="assertive">
+    <span class="alert-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      </svg>
+    </span>
+    <span class="alert-text">
+      <strong>Enderézate</strong>
+      <span id="alertReason">Llevas rato encorvado.</span>
+    </span>
+  </div>
+
+  <script type="module" src="theme.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
