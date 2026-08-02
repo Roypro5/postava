@@ -119,6 +119,7 @@ postavaDebug.evaluate({ neck: .54, width: .533, tilt: 0, side: 0, chin: .094, sh
 | `styles.css` | sistema de interfaz (claro/oscuro automático) |
 | `app.js` | cámara, modelo, temporizador, alertas e interfaz |
 | `posture.js` | lógica pura de postura, sin DOM |
+| `theme.js` | selector de tema (claro/automático/oscuro) |
 | `server.mjs` | servidor estático mínimo |
 
 ## Sistema de interfaz
