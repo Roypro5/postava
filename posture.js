@@ -69,6 +69,21 @@ export function keyPointsVisible(lm, minVisibility = 0.4) {
   return hasVisibilityData ? min > minVisibility : true;
 }
 
+/* Una línea de hombros no tiene dirección: 0° y 180° representan la misma
+   postura. Estas funciones mantienen los ángulos en [-90°, 90°) y calculan
+   siempre el recorrido más corto, evitando saltos al cruzar ±180°. */
+export function normalizeLineAngle(degrees) {
+  return ((degrees + 90) % 180 + 180) % 180 - 90;
+}
+
+function signedLineAngleDelta(from, to) {
+  return normalizeLineAngle(to - from);
+}
+
+export function lineAngleDifference(a, b) {
+  return Math.abs(signedLineAngleDelta(a, b));
+}
+
 /**
  * Métricas de postura a partir de los landmarks normalizados [0,1].
  * La X se corrige por la relación de aspecto para que las distancias sean
@@ -97,7 +112,9 @@ export function computeMetrics(lm, aspect = 4 / 3) {
     // Cercanía a la pantalla: cuanto más cerca, más ancho se ve el torso.
     width: shoulderW,
     // Desnivel de hombros, en grados.
-    tilt: (Math.atan2(rs.y - ls.y, rs.x - ls.x) * 180) / Math.PI,
+    tilt: normalizeLineAngle(
+      (Math.atan2(rs.y - ls.y, rs.x - ls.x) * 180) / Math.PI
+    ),
     // Desplazamiento lateral de la cabeza respecto al centro de los hombros.
     side: (earMid.x - shoulderMid.x) / shoulderW,
     // Barbilla hacia abajo: la nariz cae respecto a la línea de las orejas.
@@ -111,7 +128,11 @@ export function computeMetrics(lm, aspect = 4 / 3) {
 export function smooth(prev, next, alpha = 0.3) {
   if (!prev) return { ...next };
   const out = {};
-  for (const k of Object.keys(next)) out[k] = prev[k] * (1 - alpha) + next[k] * alpha;
+  for (const k of Object.keys(next)) {
+    out[k] = k === "tilt"
+      ? normalizeLineAngle(prev[k] + signedLineAngleDelta(prev[k], next[k]) * alpha)
+      : prev[k] * (1 - alpha) + next[k] * alpha;
+  }
   return out;
 }
 
@@ -136,7 +157,7 @@ export function metricReport(m, baseline, tolerance = 1) {
   const deviations = {
     neckDrop: (baseline.neck - m.neck) / Math.abs(baseline.neck || 1),
     proximity: (m.width - baseline.width) / baseline.width,
-    shoulderTilt: Math.abs(m.tilt - baseline.tilt),
+    shoulderTilt: lineAngleDifference(m.tilt, baseline.tilt),
     sideLean: Math.abs(m.side - baseline.side),
     chinDown: m.chin - baseline.chin,
     slump: (m.shoulderY - baseline.shoulderY) / baseline.width,
@@ -163,7 +184,24 @@ export function averageMetrics(samples) {
   if (!samples.length) return null;
   const out = {};
   for (const k of Object.keys(samples[0])) {
-    out[k] = samples.reduce((acc, s) => acc + s[k], 0) / samples.length;
+    if (k === "tilt") {
+      // Promedio circular con periodo de 180°: duplicar el ángulo convierte
+      // orientaciones de línea en ángulos direccionales promediables.
+      const sum = samples.reduce(
+        (acc, s) => {
+          const radians = (s[k] * 2 * Math.PI) / 180;
+          acc.sin += Math.sin(radians);
+          acc.cos += Math.cos(radians);
+          return acc;
+        },
+        { sin: 0, cos: 0 }
+      );
+      out[k] = normalizeLineAngle(
+        (Math.atan2(sum.sin, sum.cos) * 180) / (2 * Math.PI)
+      );
+    } else {
+      out[k] = samples.reduce((acc, s) => acc + s[k], 0) / samples.length;
+    }
   }
   return out;
 }
