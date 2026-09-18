@@ -115,6 +115,8 @@ body::before {
 .nav-tagline { flex: 1; margin: 0; color: var(--muted); font-size: .82rem; }
 .nav-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-ink); font-size: .73rem; font-weight: 600; white-space: nowrap; }
 .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.nav-login { flex: 0 0 auto; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--r-pill); color: var(--ink); font: 700 .76rem var(--font-display); text-decoration: none; white-space: nowrap; transition: background .18s var(--ease), transform .18s var(--ease), border-color .18s var(--ease); }
+.nav-login:hover { border-color: var(--muted-2); background: var(--surface-2); transform: translateY(-1px); }
 .theme-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line-soft); border-radius: var(--r-pill); background: var(--surface-sunk); }
 .theme-opt { display: grid; place-items: center; width: 31px; height: 31px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; transition: color .2s var(--ease), background .2s var(--ease), transform .2s var(--ease); }
 .theme-opt svg { width: 15px; height: 15px; }
@@ -251,6 +253,7 @@ input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border: 1px s
   .nav { top: 8px; margin: 12px 0 22px; padding: 8px 10px; gap: 10px; }
   .nav-tagline, .nav-pill { display: none; }
   .nav-brand { flex: 1; }
+  .nav-login { padding: 7px 11px; font-size: .72rem; }
   .card { padding: 21px; border-radius: var(--r-m); }
   .card-head { margin-bottom: 18px; }
   .dial { width: min(248px, 82%); margin-bottom: 21px; }
