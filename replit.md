@@ -1,6 +1,6 @@
 # Postava on Replit
 
-Postava is a dependency-free browser app served by the included Node.js static server.
+Postava is a vanilla browser Pomodoro with a small React island for Clerk authentication. The included Express server serves only an explicit public-file allowlist, Clerk's production proxy, and protected API routes.
 
 ## Run
 
@@ -10,8 +10,18 @@ Postava is a dependency-free browser app served by the included Node.js static s
 
 The posture model and MediaPipe runtime are loaded from external CDNs, so the browser needs internet access on first load. Camera video is processed locally in the browser and is not sent to the server.
 
-## Login screen
+## Accounts
 
-`login.html` is a presentational, accessibility-first login surface. It imports no camera or posture code. The form cannot submit before JavaScript installs its listener, has no `action` or credential-bearing GET fallback, and the bundled `auth-adapter.js` is deliberately unconfigured: it makes no network request and does not store credentials or sessions.
+- `/sign-in` and `/sign-up` render branded, Spanish Clerk flows. Password recovery is part of the sign-in flow.
+- The home page remains public and the Pomodoro, theme, posture model, and camera work without an account.
+- Clerk owns secure browser sessions through its cookie and configured session lifetime. Closing a tab is not a logout; authenticated users can explicitly use **Cerrar sesión** in the main navigation.
+- Browser API calls use Clerk's cookie automatically. Do not add bearer-token storage to frontend code.
+- `GET /api/account` is an example protected route and returns `401` to anonymous requests.
 
-To enable sign-in later, inject an adapter into `mountLogin(document, adapter)` from `login.js`. A provider adapter must expose `configured: true` and an async `signIn({ email, password, remember })` method. Connect a real provider/session implementation there, and replace the on-page recovery and registration explanations with their provider-backed flows. Do not add credential persistence to this static frontend.
+Development and Production use separate Clerk user stores. The canonical `/api/__clerk` production proxy is mounted before parsers and auth middleware; Replit provides its production configuration automatically.
+
+In development, Vite transforms only the isolated `client/` auth island and accepts the Replit preview hostname. In Production, the same server command builds that island once at startup and serves only the known bundled entry; Vite's development middleware is not mounted.
+
+## Authentication test limits
+
+Automated checks may validate anonymous pages, client-side validation surfaces, routing, and the protected API's `401`. They must not create external accounts or trigger recovery/verification email delivery without explicit permission. Full email receipt and Production session behavior therefore require an authorized manual test in the matching Clerk environment.

@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Iniciar sesión · Postava</title>
-  <meta name="description" content="Acceso a tu espacio personal de Postava." />
+  <title>Acceso · Postava</title>
+  <meta name="description" content="Inicia sesión, crea tu cuenta o recupera tu acceso a Postava." />
   <meta name="color-scheme" content="light dark" />
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="login.css" />
+  <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/login.css" />
   <script>
     (() => {
       let pref = "auto";
@@ -21,7 +22,7 @@
 <body class="login-page">
   <a class="skip-link" href="#main">Saltar al contenido</a>
   <header class="login-nav">
-    <a class="nav-brand" href="index.html" aria-label="Postava, volver al temporizador">
+    <a class="nav-brand" href="/" aria-label="Postava, volver al temporizador">
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="6" r="3" /><path d="M5 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2" />
@@ -36,41 +37,19 @@
     </div>
   </header>
   <main id="main" class="login-main">
-    <section class="login-card" aria-labelledby="login-title">
+    <section class="login-stage" aria-label="Acceso a Postava">
       <div class="login-intro">
         <p class="eyebrow">Tu espacio personal</p>
-        <h1 id="login-title">Bienvenido de nuevo</h1>
-        <p>Retoma tu ritmo con una postura que te acompañe.</p>
+        <h1>Tu ritmo, siempre contigo</h1>
+        <p>Accede a tu cuenta o crea una nueva. El Pomodoro sigue disponible sin registrarte.</p>
       </div>
-      <form id="login-form" novalidate aria-describedby="login-status">
-        <div class="login-field">
-          <label for="login-email">Correo electrónico</label>
-          <input id="login-email" name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="email-error" />
-          <p id="email-error" class="field-error" aria-live="polite"></p>
-        </div>
-        <div class="login-field">
-          <div class="password-label"><label for="login-password">Contraseña</label><button id="password-toggle" class="text-button" type="button" aria-controls="login-password" aria-pressed="false">Mostrar<span class="sr-only"> contraseña</span></button></div>
-          <input id="login-password" name="password" type="password" autocomplete="current-password" required aria-describedby="password-error" />
-          <p id="password-error" class="field-error" aria-live="polite"></p>
-        </div>
-        <label class="remember"><input id="remember-me" name="remember" type="checkbox" /><span class="checkmark" aria-hidden="true"></span><span>Recordarme <small>Solo estará disponible cuando conectes una cuenta.</small></span></label>
-        <p id="login-status" class="login-status" role="status" aria-live="polite">El acceso a cuentas aún no está conectado. Puedes seguir usando el Pomodoro sin cuenta.</p>
-        <button id="login-submit" class="login-submit" type="submit" disabled><span class="button-copy">Iniciar sesión</span><span class="button-loader" hidden aria-hidden="true"></span></button>
-      </form>
-      <div class="login-links">
-        <a href="#recovery">¿Olvidaste tu contraseña?</a>
-        <span>¿No tienes una cuenta? <a href="#register">Regístrate</a></span>
+      <div id="auth-root">
+        <div class="auth-loading" role="status"><span class="auth-spinner" aria-hidden="true"></span>Preparando acceso seguro…</div>
       </div>
-      <aside id="recovery" class="help-panel" tabindex="-1">
-        <strong>Recuperación de acceso</strong><p>La recuperación se habilitará al conectar el proveedor de cuentas. Por ahora, no introduzcas datos esperando un correo.</p>
-      </aside>
-      <aside id="register" class="help-panel" tabindex="-1">
-        <strong>Crear una cuenta</strong><p>Postava funciona sin cuenta. Para habilitar el registro hace falta conectar un servicio de autenticación.</p>
-      </aside>
     </section>
   </main>
-  <footer class="login-footer"><a href="index.html">Volver al Pomodoro sin iniciar sesión</a></footer>
-  <script type="module" src="theme.js"></script>
-  <script type="module" src="login.js"></script>
+  <footer class="login-footer"><a href="/">Volver al Pomodoro sin iniciar sesión</a></footer>
+  <script type="module" src="/theme.js"></script>
+  <script type="module" src="/auth-entry.jsx"></script>
 </body>
 </html>

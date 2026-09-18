@@ -117,6 +117,13 @@ body::before {
 .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .nav-login { flex: 0 0 auto; padding: 8px 14px; border: 1px solid var(--line); border-radius: var(--r-pill); color: var(--ink); font: 700 .76rem var(--font-display); text-decoration: none; white-space: nowrap; transition: background .18s var(--ease), transform .18s var(--ease), border-color .18s var(--ease); }
 .nav-login:hover { border-color: var(--muted-2); background: var(--surface-2); transform: translateY(-1px); }
+.nav-auth { flex: 0 0 auto; min-width: 102px; }
+.nav-account { display: flex; align-items: center; gap: 8px; }
+.nav-user { max-width: 130px; overflow: hidden; color: var(--muted); font-size: .76rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.nav-signout { background: transparent; cursor: pointer; }
+.nav-auth .auth-loading { min-height: 38px; color: var(--muted); font-size: 0; }
+.nav-auth .auth-spinner { display: block; width: 18px; height: 18px; margin: 10px auto; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: auth-spin .7s linear infinite; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
 .theme-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line-soft); border-radius: var(--r-pill); background: var(--surface-sunk); }
 .theme-opt { display: grid; place-items: center; width: 31px; height: 31px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; transition: color .2s var(--ease), background .2s var(--ease), transform .2s var(--ease); }
 .theme-opt svg { width: 15px; height: 15px; }

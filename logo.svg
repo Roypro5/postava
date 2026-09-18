@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 48" role="img" aria-labelledby="title">
+  <title id="title">Postava</title>
+  <rect x="1" y="1" width="46" height="46" rx="14" fill="#2e8b62"/>
+  <g fill="none" stroke="#fbfcfa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="24" cy="15" r="5"/>
+    <path d="M13 40v-4a8 8 0 0 1 8-8h6a8 8 0 0 1 8 8v4"/>
+  </g>
+  <text x="59" y="32" fill="#3f9b70" font-family="Manrope,Segoe UI,sans-serif" font-size="24" font-weight="800">Postava</text>
+</svg>

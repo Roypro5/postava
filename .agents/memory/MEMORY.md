@@ -1,0 +1,1 @@
+- [Authentication boundary](auth-integration.md) — preserve the guest Pomodoro; verify Clerk redirects on the real development domain.

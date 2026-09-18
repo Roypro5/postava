@@ -1,0 +1,25 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "Pomodoro con corrección de postura en tiempo real. Todo se ejecuta en el navegador: el vídeo **nunca** sale de tu equipo.",
+  "main": "app.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@clerk/express": "^2.1.69",
+    "@clerk/localizations": "^4.17.1",
+    "@clerk/react": "^6.16.1",
+    "@clerk/shared": "^4.33.0",
+    "@clerk/themes": "^2.4.57",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "vite": "^8.3.0"
+  }
+}
