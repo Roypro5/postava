@@ -1,2 +1,6 @@
 # Ajustes locales de Claude Code: personales de cada máquina, no se comparten
 .claude/settings.local.json
+node_modules/
+assets/auth-adapter.bundle.js
+test-results/
+playwright-report/
