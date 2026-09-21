@@ -1,6 +1,31 @@
 .login-page { display: flex; flex-direction: column; min-height: 100dvh; padding: 18px 24px 22px; }
+[hidden] { display: none !important; }
 .login-nav { display: flex; align-items: center; justify-content: space-between; width: min(1080px, 100%); margin: 0 auto; }
 .login-nav .nav-brand { color: var(--ink); text-decoration: none; }
+.login-card { width: min(100%, 466px); padding: clamp(28px, 5vw, 46px); border: 1px solid var(--line-soft); border-radius: 28px; background: var(--surface); box-shadow: var(--sh-card); }
+.login-card .login-intro { margin-bottom: 32px; }
+.login-card .login-intro h1 { font-size: clamp(2rem, 6vw, 2.65rem); }
+.login-field { margin-bottom: 20px; }
+.login-field label { display: block; margin-bottom: 7px; color: var(--ink); font: 700 .82rem var(--font-display); }
+.login-field input { width: 100%; min-height: 49px; padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--r-s); outline: 0; background: var(--surface-2); color: var(--ink); font: 500 1rem var(--font); }
+.login-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.login-field input[aria-invalid="true"] { border-color: var(--bad); }
+.password-label { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.text-button { min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent-ink); font: 700 .76rem var(--font-display); cursor: pointer; }
+.field-error { min-height: 1.25em; margin: 5px 0 0; color: var(--bad-ink); font-size: .76rem; }
+.remember { display: flex; align-items: flex-start; gap: 10px; margin: 1px 0 21px; color: var(--muted); font-size: .83rem; cursor: pointer; }
+.remember input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.checkmark { display: grid; flex: 0 0 auto; place-items: center; width: 19px; height: 19px; margin-top: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
+.remember input:checked + .checkmark { border-color: var(--accent); background: var(--accent); }
+.remember input:checked + .checkmark::after { width: 7px; height: 4px; border-bottom: 2px solid var(--surface); border-left: 2px solid var(--surface); content: ""; transform: rotate(-45deg) translateY(-1px); }
+.remember input:focus-visible + .checkmark { outline: 2px solid var(--accent); outline-offset: 3px; }
+.remember small { display: block; margin-top: 2px; font-size: .74rem; }
+.login-status { min-height: 1.4em; margin: -8px 0 13px; color: var(--bad-ink); font-size: .78rem; }
+.login-submit { width: 100%; min-height: 51px; border: 1px solid var(--ink); border-radius: var(--r-pill); background: var(--ink); color: var(--surface); font: 800 .87rem var(--font-display); cursor: pointer; box-shadow: var(--sh-btn); }
+.login-submit:disabled { cursor: not-allowed; opacity: .52; }
+.button-loader { display: inline-block; width: 14px; height: 14px; margin-left: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -2px; animation: login-spin .7s linear infinite; }
+.login-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 25px; color: var(--muted); font-size: .78rem; }
+.login-links a { color: var(--accent-ink); font-weight: 600; text-underline-offset: 3px; }
 .login-main { display: grid; flex: 1; place-items: center; padding: 38px 0 28px; }
 .login-stage { display: grid; grid-template-columns: minmax(220px, .72fr) minmax(320px, 1fr); align-items: center; gap: clamp(28px, 6vw, 72px); width: min(960px, 100%); }
 .login-intro { max-width: 390px; }

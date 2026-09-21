@@ -1,126 +1,223 @@
-/* Servidor de Postava: Clerk, API protegida y archivos públicos permitidos. */
+import { mkdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
-import cors from "cors";
+import { build } from "esbuild";
 import { clerkMiddleware, getAuth } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
-import { readFile } from "node:fs/promises";
-import { extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { build as buildViteClient, createServer as createViteServer } from "vite";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
   getClerkProxyHost,
 } from "./server/middlewares/clerkProxyMiddleware.mjs";
+import {
+  clearPresenceCookie,
+  createPresenceCookie,
+  readPresenceCookie,
+  requestHasPublicOrigin,
+} from "./server/session-cookie.mjs";
 
-const root = fileURLToPath(new URL(".", import.meta.url));
-const port = Number(process.argv[2]) || 5173;
-const app = express();
+const root = dirname(fileURLToPath(import.meta.url));
+const port = Number(process.argv[2]) || Number(process.env.PORT) || 5000;
 
-const TYPES = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".ico": "image/x-icon",
-};
+export async function bundleFrontend() {
+  const outfile = resolve(root, "assets/auth-adapter.bundle.js");
+  await mkdir(dirname(outfile), { recursive: true });
+  await build({
+    entryPoints: [resolve(root, "auth-adapter.js")],
+    outfile,
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    define: {
+      "import.meta.env.VITE_CLERK_PUBLISHABLE_KEY": JSON.stringify(
+        process.env.VITE_CLERK_PUBLISHABLE_KEY ??
+          process.env.CLERK_PUBLISHABLE_KEY ??
+          "",
+      ),
+      "import.meta.env.VITE_CLERK_PROXY_URL": JSON.stringify(
+        process.env.VITE_CLERK_PROXY_URL ?? "",
+      ),
+    },
+  });
+}
 
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-app.use(cors({ credentials: true, origin: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
-
-const requireAuth = (req, res, next) => {
-  const auth = getAuth(req);
-  const userId = auth?.sessionClaims?.userId || auth?.userId;
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  req.userId = userId;
+function noStore(_req, res, next) {
+  res.set("Cache-Control", "no-store");
   next();
-};
+}
 
-app.get("/api/account", requireAuth, (req, res) => {
-  res.json({ userId: req.userId });
-});
+function realClerkSession(req) {
+  const auth = getAuth(req);
+  if (!auth?.userId || !auth?.sessionId) return null;
+  return { userId: auth.userId, sessionId: auth.sessionId };
+}
 
-const PUBLIC_FILES = new Map([
-  ["/", "index.html"],
-  ["/index.html", "index.html"],
-  ["/styles.css", "styles.css"],
-  ["/login.css", "login.css"],
-  ["/theme.js", "theme.js"],
-  ["/app.js", "app.js"],
-  ["/posture.js", "posture.js"],
-  ["/logo.svg", "logo.svg"],
-]);
+function sessionSecret() {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    const error = new Error("SESSION_SECRET is required for app session markers");
+    error.code = "SESSION_SECRET_REQUIRED";
+    throw error;
+  }
+  return secret;
+}
 
-async function sendPublic(fileName, res) {
+function authenticatedPresence(req) {
+  const session = realClerkSession(req);
+  if (!session) return null;
+
+  const marker = readPresenceCookie(
+    req.headers.cookie,
+    session.sessionId,
+    sessionSecret(),
+  );
+  if (!marker) return null;
+  return { ...session, remember: marker.remember };
+}
+
+function sendAuthenticatedPresence(req, res) {
   try {
-    const file = join(root, fileName);
-    const data = await readFile(file);
-    res.status(200).set({
-      "Content-Type": TYPES[extname(file).toLowerCase()] || "application/octet-stream",
-      "Cache-Control": "no-store",
-    });
-    res.send(data);
-  } catch {
-    res.status(404).type("text").send("404");
+    const authenticated = authenticatedPresence(req);
+    if (!authenticated) {
+      return res.status(401).json({ error: "SESSION_REQUIRED" });
+    }
+    return res.json(authenticated);
+  } catch (error) {
+    if (error?.code === "SESSION_SECRET_REQUIRED") {
+      return res.status(500).json({ error: "SESSION_CONFIGURATION_ERROR" });
+    }
+    throw error;
   }
 }
 
-app.get(["/login.html", "/login"], (_req, res) => res.redirect(302, "/sign-in"));
-app.get(/^\/sign-(in|up)(\/.*)?$/, (_req, res) => sendPublic("login.html", res));
-for (const [url, file] of PUBLIC_FILES) {
-  app.get(url, (_req, res) => sendPublic(file, res));
-}
+export function createApp() {
+  const app = express();
+  app.set("trust proxy", true);
+  app.disable("x-powered-by");
 
-if (process.env.NODE_ENV === "production") {
-  // Keep the existing `node server.mjs 5000` command production-ready: bundle
-  // the isolated island once at startup, then serve only its known output.
-  const outDir = join(root, ".postava-build");
-  await buildViteClient({
-    root: join(root, "client"),
-    publicDir: false,
-    logLevel: "warn",
-    build: {
-      outDir,
-      emptyOutDir: true,
-      sourcemap: false,
-      rollupOptions: {
-        input: join(root, "client/auth-entry.jsx"),
-        output: {
-          entryFileNames: "auth-entry.js",
-          codeSplitting: false,
-        },
-      },
-    },
-  });
-  app.get("/auth-entry.jsx", (_req, res) =>
-    sendPublic(".postava-build/auth-entry.js", res),
+  // This raw streaming proxy must be mounted before all body parsers.
+  app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+  // Browser auth endpoints are same-origin only; do not reflect arbitrary CORS origins.
+  app.use(express.json({ limit: "16kb" }));
+  app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+
+  app.use(
+    clerkMiddleware((req) => ({
+      publishableKey: publishableKeyFromHost(
+        getClerkProxyHost(req) ?? "",
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
+    })),
   );
-} else {
-  // Development transforms the small React auth island only. Its root is
-  // isolated from application/server files and accepts Replit's preview host.
-  const vite = await createViteServer({
-    root: join(root, "client"),
-    publicDir: false,
-    appType: "custom",
-    server: { middlewareMode: true, allowedHosts: true },
+
+  app.use("/api/auth", noStore);
+  app.use("/api/account", noStore);
+
+  app.get("/api/auth/config", (req, res) => {
+    res.json({
+      publishableKey: publishableKeyFromHost(
+        getClerkProxyHost(req) ?? "",
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
+      proxyUrl: process.env.VITE_CLERK_PROXY_URL ?? "",
+    });
   });
-  app.use(vite.middlewares);
+
+  app.get("/api/auth/session", sendAuthenticatedPresence);
+
+  app.get("/api/account", (req, res) => {
+    try {
+      const authenticated = authenticatedPresence(req);
+      if (!authenticated) {
+        return res.status(401).json({ error: "SESSION_REQUIRED" });
+      }
+      return res.json({ userId: authenticated.userId });
+    } catch (error) {
+      if (error?.code === "SESSION_SECRET_REQUIRED") {
+        return res.status(500).json({ error: "SESSION_CONFIGURATION_ERROR" });
+      }
+      throw error;
+    }
+  });
+
+  app.post("/api/auth/session", (req, res) => {
+    if (!requestHasPublicOrigin(req)) {
+      return res.status(403).json({ error: "UNSAFE_ORIGIN" });
+    }
+    const session = realClerkSession(req);
+    if (!session) {
+      return res.status(401).json({ error: "SESSION_REQUIRED" });
+    }
+    if (typeof req.body?.remember !== "boolean") {
+      return res.status(400).json({ error: "INVALID_REMEMBER" });
+    }
+
+    try {
+      res.set(
+        "Set-Cookie",
+        createPresenceCookie(
+          session.sessionId,
+          req.body.remember,
+          sessionSecret(),
+        ),
+      );
+    } catch (error) {
+      if (error?.code === "SESSION_SECRET_REQUIRED") {
+        return res.status(500).json({ error: "SESSION_CONFIGURATION_ERROR" });
+      }
+      throw error;
+    }
+    return res.status(204).end();
+  });
+
+  app.delete("/api/auth/session", (req, res) => {
+    if (!requestHasPublicOrigin(req)) {
+      return res.status(403).json({ error: "UNSAFE_ORIGIN" });
+    }
+    res.set("Set-Cookie", clearPresenceCookie());
+    return res.status(204).end();
+  });
+
+  const publicFiles = new Map([
+    ["/index.html", "index.html"],
+    ["/login.html", "login.html"],
+    ["/app.js", "app.js"],
+    ["/styles.css", "styles.css"],
+    ["/theme.js", "theme.js"],
+    ["/posture.js", "posture.js"],
+    ["/login.css", "login.css"],
+    ["/auth-adapter.js", "auth-adapter.js"],
+    ["/login.js", "login.js"],
+    ["/account.js", "account.js"],
+    ["/logo.svg", "logo.svg"],
+    ["/assets/auth-adapter.bundle.js", "assets/auth-adapter.bundle.js"],
+  ]);
+
+  app.get("/", (_req, res) => res.sendFile(resolve(root, "index.html")));
+  app.get(["/login", "/login.html"], (_req, res) =>
+    res.redirect(302, "/sign-in"),
+  );
+  app.get(/^\/(?:sign-in|sign-up)(?:\/.*)?$/, (_req, res) =>
+    res.sendFile(resolve(root, "login.html")),
+  );
+  app.get("*path", (req, res, next) => {
+    const file = publicFiles.get(req.path);
+    if (!file) return next();
+    return res.sendFile(resolve(root, file));
+  });
+  app.use((_req, res) => res.status(404).type("text").send("404"));
+
+  return app;
 }
 
-app.use((_req, res) => res.status(404).type("text").send("404"));
+const isMain =
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
-app.listen(port, () => {
-  console.log(`Postava en http://localhost:${port}`);
-});
+if (isMain) {
+  await bundleFrontend();
+  createApp().listen(port, () => {
+    console.log(`Postava listening on port ${port}`);
+  });
+}

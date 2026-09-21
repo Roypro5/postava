@@ -37,19 +37,44 @@
     </div>
   </header>
   <main id="main" class="login-main">
-    <section class="login-stage" aria-label="Acceso a Postava">
+    <section class="login-card" aria-labelledby="login-title">
       <div class="login-intro">
         <p class="eyebrow">Tu espacio personal</p>
-        <h1>Tu ritmo, siempre contigo</h1>
+        <h1 id="login-title">Bienvenido de nuevo</h1>
         <p>Accede a tu cuenta o crea una nueva. El Pomodoro sigue disponible sin registrarte.</p>
       </div>
-      <div id="auth-root">
-        <div class="auth-loading" role="status"><span class="auth-spinner" aria-hidden="true"></span>Preparando acceso seguro…</div>
+      <form id="login-form" novalidate aria-describedby="login-status" onsubmit="event.preventDefault()">
+        <div class="login-field">
+          <label for="login-email">Correo electrónico</label>
+          <input id="login-email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="email-error" />
+          <p id="email-error" class="field-error" aria-live="polite"></p>
+        </div>
+        <div class="login-field">
+          <div class="password-label"><label for="login-password">Contraseña</label><button id="password-toggle" class="text-button" type="button" aria-controls="login-password" aria-pressed="false">Mostrar<span class="sr-only"> contraseña</span></button></div>
+          <input id="login-password" type="password" autocomplete="current-password" required aria-describedby="password-error" />
+          <p id="password-error" class="field-error" aria-live="polite"></p>
+        </div>
+        <div class="login-field" hidden>
+          <label for="login-code">Código de verificación</label>
+          <input id="login-code" type="text" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" aria-describedby="code-error" disabled />
+          <p id="code-error" class="field-error" aria-live="polite"></p>
+        </div>
+        <label class="remember"><input id="remember-me" name="remember" type="checkbox" /><span class="checkmark" aria-hidden="true"></span><span>Recordarme <small>Mantén el acceso en este dispositivo, hasta que caduque la sesión. No lo actives en equipos compartidos.</small></span></label>
+        <div id="clerk-captcha"></div>
+        <p id="login-status" class="login-status" role="status" aria-live="polite">Conectando con el servicio de cuentas…</p>
+        <button id="login-submit" class="login-submit" type="submit" disabled><span class="button-copy">Iniciar sesión</span><span class="button-loader" hidden aria-hidden="true"></span></button>
+        <button id="resend-code" class="text-button" type="button" hidden>Reenviar código</button>
+        <noscript>Activa JavaScript para acceder a tu cuenta. El formulario no enviará tus datos.</noscript>
+      </form>
+      <div class="login-links">
+        <a href="/login.html#recovery">¿Olvidaste tu contraseña?</a>
+        <span>¿No tienes una cuenta? <a href="/login.html#register">Regístrate</a></span>
+        <a href="/login.html#login">Volver a iniciar sesión</a>
       </div>
     </section>
   </main>
   <footer class="login-footer"><a href="/">Volver al Pomodoro sin iniciar sesión</a></footer>
   <script type="module" src="/theme.js"></script>
-  <script type="module" src="/auth-entry.jsx"></script>
+  <script type="module" src="/login.js"></script>
 </body>
 </html>

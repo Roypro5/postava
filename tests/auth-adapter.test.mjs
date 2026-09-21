@@ -1,0 +1,113 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { createAuthAdapter, authError } from "../auth-adapter.js";
+
+function setup() {
+  const calls = [];
+  const complete = { status: "complete", createdSessionId: "test-session" };
+  const signIn = {
+    status: "needs_first_factor",
+    supportedFirstFactors: [{ strategy: "reset_password_email_code", emailAddressId: "test-email" }],
+    create: async values => { calls.push(["credentials", values]); return complete; },
+    attemptFirstFactor: async values => { calls.push(["verify", values]); signIn.status = "needs_new_password"; return signIn; },
+    resetPassword: async values => { calls.push(["reset", values]); return complete; },
+  };
+  const clerk = {
+    session: { id: "test-session" }, user: { id: "test-user" }, client: { signIn },
+    setActive: async values => calls.push(["active", values]),
+    signOut: async () => calls.push(["signout"]),
+  };
+  const request = async (url, options) => { calls.push(["request", url, options]); return { ok: true, status: 204 }; };
+  return { clerk, calls, request };
+}
+
+test("login establishes provider session then signed persistence preference without password", async () => {
+  const { clerk, calls, request } = setup();
+  const adapter = createAuthAdapter(clerk, request);
+  assert.deepEqual(await adapter.signIn({ email: "test@example.com", password: "only-to-provider", remember: true }), { step: "complete" });
+  const [, url, options] = calls.find(c => c[0] === "request");
+  assert.equal(url, "/api/auth/session");
+  assert.deepEqual(JSON.parse(options.body), { remember: true });
+  assert.equal(options.credentials, "same-origin");
+  assert.ok(calls.findIndex(c => c[0] === "active") < calls.findIndex(c => c[0] === "request"));
+});
+test("failed session creation revokes newly activated provider session", async () => {
+  const { clerk, calls } = setup();
+  const adapter = createAuthAdapter(clerk, async () => ({ ok: false }));
+  await assert.rejects(adapter.signIn({ email: "test@example.com", password: "test", remember: false }), /SESSION_UNAVAILABLE/);
+  assert.ok(calls.some(c => c[0] === "signout"));
+});
+test("missing browser-presence marker signs out; network failure does not masquerade as logout", async () => {
+  const { clerk, calls } = setup();
+  assert.equal(await createAuthAdapter(clerk, async () => ({ status: 401 })).restore(), null);
+  assert.equal(calls.length, 1);
+  await assert.rejects(createAuthAdapter(clerk, async () => ({ status: 503, ok: false })).restore());
+  assert.equal(calls.length, 1);
+});
+test("reset verifies code, revokes other sessions and allows password retry without reused OTP", async () => {
+  const { clerk, calls, request } = setup();
+  clerk.client.signIn.create = async () => clerk.client.signIn;
+  const adapter = createAuthAdapter(clerk, request);
+  await adapter.recover("test@example.com");
+  await adapter.reset("123456", "new-passphrase", false);
+  await adapter.reset("123456", "newer-passphrase", false);
+  assert.equal(calls.filter(c => c[0] === "verify").length, 1);
+  assert.deepEqual(calls.find(c => c[0] === "reset")[1], { password: "new-passphrase", signOutOfOtherSessions: true });
+});
+test("recovery resend supplies the provider email identifier", async () => {
+  const { clerk, calls, request } = setup();
+  clerk.client.signIn.create = async () => clerk.client.signIn;
+  clerk.client.signIn.prepareFirstFactor = async values => calls.push(["resend", values]);
+  const adapter = createAuthAdapter(clerk, request);
+  await adapter.recover("test@example.com");
+  await adapter.resend("reset-code");
+  assert.deepEqual(calls[0], ["resend", { strategy: "reset_password_email_code", emailAddressId: "test-email" }]);
+});
+test("failed recovery cannot reuse an earlier account's pending verification", async () => {
+  const { clerk, calls, request } = setup();
+  clerk.client.signIn.create = async () => clerk.client.signIn;
+  const adapter = createAuthAdapter(clerk, request);
+  await adapter.recover("first@example.com");
+  clerk.client.signIn.create = async () => { throw new Error("unknown account"); };
+  await assert.rejects(adapter.recover("unknown@example.com"));
+  await assert.rejects(adapter.reset("123456", "new-passphrase", false), /RECOVERY_NOT_STARTED/);
+  await assert.rejects(adapter.resend("reset-code"), /RECOVERY_NOT_STARTED/);
+  assert.equal(calls.length, 0);
+});
+test("incorrect recovery code never changes password or establishes session", async () => {
+  const { clerk, calls, request } = setup();
+  clerk.client.signIn.create = async () => clerk.client.signIn;
+  clerk.client.signIn.attemptFirstFactor = async () => { throw new Error("invalid code"); };
+  const adapter = createAuthAdapter(clerk, request);
+  await adapter.recover("test@example.com");
+  await assert.rejects(adapter.reset("bad-code", "new-passphrase", true), /invalid code/);
+  assert.equal(calls.length, 0);
+});
+test("registration awaits email verification before setting session with remember choice", async () => {
+  const { clerk, calls, request } = setup();
+  const signup = {
+    status: "missing_requirements",
+    prepareEmailAddressVerification: async values => calls.push(["send", values]),
+    attemptEmailAddressVerification: async values => {
+      calls.push(["verify-email", values]);
+      return { status: "complete", createdSessionId: "test-session" };
+    },
+  };
+  clerk.client.signUp = { ...signup, create: async () => signup };
+  const adapter = createAuthAdapter(clerk, request);
+  assert.deepEqual(await adapter.signUp({ email: "test@example.com", password: "test-password", remember: true }), { step: "verify-email" });
+  assert.equal(calls.some(c => c[0] === "active"), false);
+  assert.deepEqual(await adapter.verifyEmail("123456"), { step: "complete" });
+  assert.deepEqual(JSON.parse(calls.find(c => c[0] === "request")[2].body), { remember: true });
+});
+test("logout uses Clerk SDK before clearing app marker", async () => {
+  const { clerk, calls, request } = setup();
+  await createAuthAdapter(clerk, request).signOut();
+  assert.equal(calls[0][0], "signout");
+  assert.equal(calls[1][2].method, "DELETE");
+});
+test("provider errors are mapped without reflecting arbitrary provider messages", () => {
+  assert.match(authError({ errors: [{ code: "form_code_incorrect" }] }), /código no es válido/);
+  assert.match(authError({ status: 429 }), /Demasiados intentos/);
+  assert.doesNotMatch(authError({ message: "sensitive data" }), /sensitive data/);
+});

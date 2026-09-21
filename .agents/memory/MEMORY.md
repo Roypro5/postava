@@ -1,1 +1,3 @@
 - [Authentication boundary](auth-integration.md) — preserve the guest Pomodoro; verify Clerk redirects on the real development domain.
+- [Clerk adapter tests](clerk-adapter-tests.md) — eager Clerk SDK imports can keep Node unit tests running after assertions finish.
+- [Authentication test tooling](auth-test-tooling.md) — distinguish local Playwright checks from managed Clerk login verification.

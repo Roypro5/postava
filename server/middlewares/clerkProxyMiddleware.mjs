@@ -1,6 +1,6 @@
 /**
- * Clerk Frontend API proxy. This is the JavaScript equivalent of Replit's
- * canonical middleware template; it is intentionally active only in production.
+ * Canonical Clerk Frontend API proxy. Keep this middleware before body parsers:
+ * it forwards the incoming request stream without reconstructing its body.
  */
 import { createProxyMiddleware } from "http-proxy-middleware";
 
@@ -15,7 +15,12 @@ export function getClerkProxyHost(req) {
 }
 
 export function clerkProxyMiddleware() {
-  if (process.env.NODE_ENV !== "production" || !process.env.CLERK_SECRET_KEY) {
+  if (process.env.NODE_ENV !== "production") {
+    return (_req, _res, next) => next();
+  }
+
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
     return (_req, _res, next) => next();
   }
 
@@ -23,13 +28,17 @@ export function clerkProxyMiddleware() {
     target: CLERK_FAPI,
     changeOrigin: true,
     selfHandleResponse: true,
-    pathRewrite: (path) => path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
+    pathRewrite: (path) =>
+      path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
       proxyReq: (proxyReq, req) => {
         const protocol = req.headers["x-forwarded-proto"] || "https";
         const host = getClerkProxyHost(req) || "";
-        proxyReq.setHeader("Clerk-Proxy-Url", `${protocol}://${host}${CLERK_PROXY_PATH}`);
-        proxyReq.setHeader("Clerk-Secret-Key", process.env.CLERK_SECRET_KEY);
+        proxyReq.setHeader(
+          "Clerk-Proxy-Url",
+          `${protocol}://${host}${CLERK_PROXY_PATH}`,
+        );
+        proxyReq.setHeader("Clerk-Secret-Key", secretKey);
 
         const xff = req.headers["x-forwarded-for"];
         const clientIp =
@@ -47,8 +56,10 @@ export function clerkProxyMiddleware() {
         const status = proxyRes.statusCode ?? 502;
         if (status < 200 || status === 204) delete headers["content-length"];
         const bodyless =
-          req.method === "HEAD" || status < 200 || status === 204 || status === 304;
-
+          req.method === "HEAD" ||
+          status < 200 ||
+          status === 204 ||
+          status === 304;
         if (headers["content-length"] !== undefined || bodyless) {
           res.writeHead(status, headers);
           proxyRes.on("error", () => res.destroy());
@@ -65,7 +76,9 @@ export function clerkProxyMiddleware() {
           res.end(body);
         });
         proxyRes.on("error", () => {
-          if (!res.headersSent) res.writeHead(502, { "content-length": "0" });
+          if (!res.headersSent) {
+            res.writeHead(502, { "content-length": "0" });
+          }
           res.end();
         });
       },

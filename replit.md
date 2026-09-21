@@ -1,6 +1,6 @@
 # Postava on Replit
 
-Postava is a vanilla browser Pomodoro with a small React island for Clerk authentication. The included Express server serves only an explicit public-file allowlist, Clerk's production proxy, and protected API routes.
+Postava is a browser-based Pomodoro/posture app served by Node.js and Express. Clerk manages optional accounts; the timer and local camera processing remain available without an account.
 
 ## Run
 
@@ -12,15 +12,15 @@ The posture model and MediaPipe runtime are loaded from external CDNs, so the br
 
 ## Accounts
 
-- `/sign-in` and `/sign-up` render branded, Spanish Clerk flows. Password recovery is part of the sign-in flow.
-- The home page remains public and the Pomodoro, theme, posture model, and camera work without an account.
-- Clerk owns secure browser sessions through its cookie and configured session lifetime. Closing a tab is not a logout; authenticated users can explicitly use **Cerrar sesión** in the main navigation.
-- Browser API calls use Clerk's cookie automatically. Do not add bearer-token storage to frontend code.
-- `GET /api/account` is an example protected route and returns `401` to anonymous requests.
+`login.html`, `login.js`, and `auth-adapter.js` implement email/password login, registration with email verification, and password recovery through Replit-managed Clerk. Development and production have separate Clerk user stores. No password is stored by this app.
 
-Development and Production use separate Clerk user stores. The canonical `/api/__clerk` production proxy is mounted before parsers and auth middleware; Replit provides its production configuration automatically.
+Server startup builds the browser adapter with esbuild. Run `npm install` after cloning and `npm test` for regression tests. Static serving is allowlisted; never expose the whole workspace.
 
-In development, Vite transforms only the isolated `client/` auth island and accepts the Replit preview hostname. In Production, the same server command builds that island once at startup and serves only the known bundled entry; Vite's development middleware is not mounted.
+`Recordarme` uses an additional HttpOnly, Secure, SameSite=Lax signed presence cookie bound to the Clerk session. Unchecked: browser-session cookie; checked: up to 30 days, subject to Clerk's shorter expiry/revocation rules. Browsers that restore sessions may also restore session cookies; users of shared computers must explicitly sign out. Clerk remains the authentication authority and its SDK owns sign-out. All future private routes must require BOTH verified Clerk auth and a valid presence cookie, as `/api/auth/session` does.
+
+Configuration is automatically provisioned with Clerk. `SESSION_SECRET` signs the presence cookie; keep it stable across server restarts. The canonical proxy is mounted before body parsing for published custom domains. Frontend requests are same-origin and cookie-based, never explicit bearer tokens.
+
+`/sign-in`, `/sign-up`, and `/login` remain entry routes. `GET /api/account` remains protected by Clerk plus the presence cookie. The earlier React island source is retained in `client/` but is not mounted or served; there must be only one active auth client.
 
 ## Authentication test limits
 
