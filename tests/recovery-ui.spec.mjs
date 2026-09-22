@@ -23,11 +23,14 @@ test("recovery handles invalid code, password retry and resend cooldown", async 
   await page.locator("#login-submit").click();
   await expect(page.locator("#login-code")).toBeVisible();
   await expect(page.locator("#login-password")).toHaveAttribute("autocomplete", "new-password");
+  await expect(page.locator("#login-password-confirm")).toBeVisible();
   await page.locator("#login-code").fill("123456");
   await page.locator("#login-password").fill("Test-passphrase-only");
+  await page.locator("#login-password-confirm").fill("Test-passphrase-only");
   await page.locator("#login-submit").click();
   await expect(page.locator("#login-status")).toContainText("código no es válido");
   await expect(page.locator("#login-password")).toHaveValue("");
+  await expect(page.locator("#login-password-confirm")).toHaveValue("");
   await expect(page.locator("#login-submit")).toBeEnabled();
   await page.locator("#resend-code").click();
   await expect(page.locator("#login-status")).toContainText("nuevo código");

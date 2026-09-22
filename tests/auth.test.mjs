@@ -24,6 +24,8 @@ test("server mounts proxy before parsers and protects account API", async () => 
   assert.match(server, /app\.get\("\/api\/account"/);
   assert.match(server, /authenticatedPresence\(req\)/);
   assert.match(server, /status\(401\)\.json\(\{ error: "SESSION_REQUIRED" \}\)/);
+  assert.match(server, /res\.redirect\(302, "\/sign-in\?redirect=\/stats"\)/);
+  assert.match(server, /app\.get\("\/stats-data\.json"/);
   assert.doesNotMatch(server, /express\.static/);
   assert.match(server, /assets\/auth-adapter\.bundle\.js/);
   assert.doesNotMatch(server, /vite\.middlewares/);
@@ -34,20 +36,36 @@ test("guest homepage keeps Pomodoro controls and mounts only one auth client", a
   assert.match(html, /id="timerDisplay"/);
   assert.match(html, /id="btnStart"/);
   assert.match(html, /src="\/account\.js"/);
+  assert.match(html, /class="nav-stats-link" href="\/stats" hidden/);
   assert.doesNotMatch(html, /src="\/auth-entry\.jsx"/);
   assert.match(html, /src="app\.js"/);
 });
 
 test("account pages expose sign-in, sign-up, sign-out and honest session copy", async () => {
-  const [client, login, docs] = await Promise.all([
+  const [client, loginHtml, loginClient, docs] = await Promise.all([
     read("auth-adapter.js"),
     read("login.html"),
+    read("login.js"),
     read("replit.md"),
   ]);
   assert.match(client, /async signIn\(/);
   assert.match(client, /async signUp\(/);
   assert.match(client, /await clerk\.signOut\(\)/);
   assert.match(docs, /Browsers that restore sessions may also restore session cookies/);
-  assert.match(login, /id="remember-me"/);
-  assert.match(login, /equipos compartidos/);
+  assert.match(loginHtml, /id="remember-me"/);
+  assert.match(loginHtml, /equipos compartidos/);
+  assert.match(loginHtml, /id="password-requirement"/);
+  assert.match(loginHtml, /id="login-password-confirm"/);
+  assert.match(loginClient, /userSettings\?\.passwordSettings/);
+  assert.match(loginClient, /Usa al menos \$\{passwordMinLength\} caracteres/);
+  assert.match(loginClient, /Tu sesión terminó/);
+});
+
+test("statistics expose account controls and handle revoked sessions", async () => {
+  const [html, client] = await Promise.all([read("stats.html"), read("stats.js")]);
+  assert.match(html, /id="stats-account"/);
+  assert.match(html, /id="stats-signout"/);
+  assert.match(client, /await adapter\.signOut\(\)/);
+  assert.match(client, /session-ended/);
+  assert.match(client, /response\.status === 401/);
 });

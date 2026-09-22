@@ -13,3 +13,9 @@ Validate Clerk redirect behavior on the actual Replit development domain, not so
 **Why:** A persistent localhost screenshot context produced a session-refresh loop warning while fresh and repeated navigation on the real development domain completed normally.
 
 **How to apply:** Investigate warnings with real-domain browser navigation before concluding that the managed keys are mismatched. Never change keys solely on the basis of this local screenshot warning.
+
+The project owner confirmed the full development flow with a real account and accessible email on September 22, 2026: verification email, recovery email, remember/no-remember reopening, sign-out, and revoked access all behaved as intended.
+
+**Why:** Automated UI tests cannot prove email delivery or browser reopening behavior; this confirmation closes the development-only evidence gap.
+
+**How to apply:** Treat development authentication as verified, but repeat the same matrix in the isolated Production Clerk environment before launch.

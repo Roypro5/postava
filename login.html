@@ -52,7 +52,13 @@
         <div class="login-field">
           <div class="password-label"><label for="login-password">Contraseña</label><button id="password-toggle" class="text-button" type="button" aria-controls="login-password" aria-pressed="false">Mostrar<span class="sr-only"> contraseña</span></button></div>
           <input id="login-password" type="password" autocomplete="current-password" required aria-describedby="password-error" />
+          <p id="password-requirement" class="field-hint" hidden></p>
           <p id="password-error" class="field-error" aria-live="polite"></p>
+        </div>
+        <div class="login-field" hidden>
+          <label for="login-password-confirm">Repite la contraseña</label>
+          <input id="login-password-confirm" type="password" autocomplete="new-password" required aria-describedby="password-confirm-error" disabled />
+          <p id="password-confirm-error" class="field-error" aria-live="polite"></p>
         </div>
         <div class="login-field" hidden>
           <label for="login-code">Código de verificación</label>

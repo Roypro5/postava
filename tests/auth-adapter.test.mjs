@@ -108,6 +108,10 @@ test("logout uses Clerk SDK before clearing app marker", async () => {
 });
 test("provider errors are mapped without reflecting arbitrary provider messages", () => {
   assert.match(authError({ errors: [{ code: "form_code_incorrect" }] }), /código no es válido/);
+  const shortPassword = authError({ errors: [{ code: "form_password_length_too_short" }] });
+  assert.match(shortPassword, /longitud mínima configurada/);
+  assert.doesNotMatch(shortPassword, /8 caracteres/);
   assert.match(authError({ status: 429 }), /Demasiados intentos/);
+  assert.match(authError({ errors: [{ code: "form_identifier_exists" }] }), /correo ya está registrado.*recuperar el acceso/);
   assert.doesNotMatch(authError({ message: "sensitive data" }), /sensitive data/);
 });

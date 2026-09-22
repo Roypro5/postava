@@ -181,6 +181,8 @@ export function createApp() {
 
   const publicFiles = new Map([
     ["/index.html", "index.html"],
+    ["/stats.css", "stats.css"],
+    ["/stats.js", "stats.js"],
     ["/login.html", "login.html"],
     ["/app.js", "app.js"],
     ["/styles.css", "styles.css"],
@@ -195,6 +197,32 @@ export function createApp() {
   ]);
 
   app.get("/", (_req, res) => res.sendFile(resolve(root, "index.html")));
+  app.get(["/stats", "/stats.html"], (req, res) => {
+    try {
+      if (!authenticatedPresence(req)) {
+        return res.redirect(302, "/sign-in?redirect=/stats");
+      }
+      return res.sendFile(resolve(root, "stats.html"));
+    } catch (error) {
+      if (error?.code === "SESSION_SECRET_REQUIRED") {
+        return res.status(500).type("text").send("Session configuration error");
+      }
+      throw error;
+    }
+  });
+  app.get("/stats-data.json", (req, res) => {
+    try {
+      if (!authenticatedPresence(req)) {
+        return res.status(401).json({ error: "SESSION_REQUIRED" });
+      }
+      return res.sendFile(resolve(root, "stats-data.json"));
+    } catch (error) {
+      if (error?.code === "SESSION_SECRET_REQUIRED") {
+        return res.status(500).json({ error: "SESSION_CONFIGURATION_ERROR" });
+      }
+      throw error;
+    }
+  });
   app.get(["/login", "/login.html"], (_req, res) =>
     res.redirect(302, "/sign-in"),
   );

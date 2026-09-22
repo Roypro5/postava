@@ -5,15 +5,23 @@ export async function mountLogin(doc = document, providedAdapter) {
   if (!form) return;
   const email = doc.querySelector("#login-email");
   const password = doc.querySelector("#login-password");
+  const passwordConfirm = doc.querySelector("#login-password-confirm");
+  const passwordRequirement = doc.querySelector("#password-requirement");
   const code = doc.querySelector("#login-code");
   const remember = doc.querySelector("#remember-me");
   const submit = doc.querySelector("#login-submit");
   const status = doc.querySelector("#login-status");
   const resend = doc.querySelector("#resend-code");
+  const redirectTo = (() => {
+    const requested = new URLSearchParams(location.search).get("redirect");
+    return requested === "/stats" ? requested : "/";
+  })();
   const modeFromURL = () => location.pathname.startsWith("/sign-up") || location.hash === "#register" ? "register" : location.hash === "#recovery" ? "recovery" : "login";
   let mode = modeFromURL(), busy = false, adapter;
+  let passwordMinLength = 8;
   let resendAfter = 0;
   const labels = { login: ["Bienvenido de nuevo", "Iniciar sesión"], register: ["Crea tu cuenta", "Crear cuenta"], recovery: ["Recupera tu acceso", "Enviar código"], "verify-email": ["Verifica tu correo", "Verificar correo"], "reset-code": ["Elige una nueva contraseña", "Cambiar contraseña"], "second-factor": ["Verifica tu acceso", "Verificar código"], "first-factor": ["Verifica tu acceso", "Verificar código"], "new-password": ["Renueva tu contraseña", "Guardar contraseña"] };
+  const sessionReason = new URLSearchParams(location.search).get("reason");
   const setError = (field, message = "") => {
     field.setAttribute("aria-invalid", String(!!message));
     doc.getElementById(field.getAttribute("aria-describedby")).textContent = message;
@@ -21,11 +29,13 @@ export async function mountLogin(doc = document, providedAdapter) {
   function render() {
     const hasEmail = ["login", "register", "recovery"].includes(mode);
     const hasPassword = ["login", "register", "reset-code", "new-password"].includes(mode);
+    const hasPasswordConfirm = ["register", "reset-code", "new-password"].includes(mode);
     const hasCode = ["verify-email", "reset-code", "second-factor", "first-factor"].includes(mode);
     email.closest(".login-field").hidden = !hasEmail;
     password.closest(".login-field").hidden = !hasPassword;
+    passwordConfirm.closest(".login-field").hidden = !hasPasswordConfirm;
     code.closest(".login-field").hidden = !hasCode;
-    email.disabled = !hasEmail || busy; password.disabled = !hasPassword || busy; code.disabled = !hasCode || busy;
+    email.disabled = !hasEmail || busy; password.disabled = !hasPassword || busy; passwordConfirm.disabled = !hasPasswordConfirm || busy; code.disabled = !hasCode || busy;
     password.autocomplete = mode === "login" ? "current-password" : "new-password";
     remember.closest(".remember").hidden = !hasPassword;
     remember.disabled = busy;
@@ -42,11 +52,11 @@ export async function mountLogin(doc = document, providedAdapter) {
     event.currentTarget.setAttribute("aria-pressed", String(!shown));
     event.currentTarget.firstChild.textContent = shown ? "Mostrar" : "Ocultar";
   });
-  [email, password, code].forEach(field => field.addEventListener("input", () => setError(field)));
+  [email, password, passwordConfirm, code].forEach(field => field.addEventListener("input", () => setError(field)));
   window.addEventListener("hashchange", () => {
     if (busy) return;
-    mode = modeFromURL(); password.value = ""; code.value = ""; status.textContent = "";
-    [email, password, code].forEach(field => setError(field));
+    mode = modeFromURL(); password.value = ""; passwordConfirm.value = ""; code.value = ""; status.textContent = "";
+    [email, password, passwordConfirm, code].forEach(field => setError(field));
     render(); email.focus();
   });
   resend.addEventListener("click", async () => {
@@ -60,10 +70,17 @@ export async function mountLogin(doc = document, providedAdapter) {
   form.addEventListener("submit", async event => {
     event.preventDefault();
     if (busy || !adapter) return;
-    [email, password, code].forEach(field => setError(field));
+    [email, password, passwordConfirm, code].forEach(field => setError(field));
     let invalid;
     if (!email.disabled && !email.validity.valid) { setError(email, "Escribe un correo electrónico válido."); invalid = email; }
-    if (!password.disabled && (!password.value || (mode !== "login" && password.value.length < 8))) { setError(password, mode === "login" ? "Escribe tu contraseña." : "Usa al menos 8 caracteres."); invalid ||= password; }
+    if (!password.disabled && (!password.value || (mode !== "login" && password.value.length < passwordMinLength))) {
+      setError(password, mode === "login" ? "Escribe tu contraseña." : `Usa al menos ${passwordMinLength} caracteres.`);
+      invalid ||= password;
+    }
+    if (!passwordConfirm.disabled && passwordConfirm.value !== password.value) {
+      setError(passwordConfirm, "Las contraseñas no coinciden.");
+      invalid ||= passwordConfirm;
+    }
     if (!code.disabled && !code.value.trim()) { setError(code, "Escribe el código de verificación."); invalid ||= code; }
     if (invalid) { invalid.focus(); return; }
     const values = { email: email.value.trim(), password: password.value, remember: remember.checked };
@@ -77,8 +94,8 @@ export async function mountLogin(doc = document, providedAdapter) {
       else if (mode === "reset-code") result = await adapter.reset(code.value.trim(), values.password, values.remember);
       else if (mode === "new-password") result = await adapter.newPassword(values.password, values.remember);
       else result = await adapter.verifyFactor(code.value.trim(), mode === "first-factor");
-      password.value = ""; code.value = "";
-      if (result.step === "complete") { location.assign("/"); return; }
+      password.value = ""; passwordConfirm.value = ""; code.value = "";
+      if (result.step === "complete") { location.assign(redirectTo); return; }
       mode = result.step;
       status.textContent = mode === "new-password" ? "Elige una contraseña segura."
         : result.strategy === "totp" ? "Escribe el código de tu aplicación de autenticación."
@@ -90,16 +107,32 @@ export async function mountLogin(doc = document, providedAdapter) {
       if (mode === "recovery" && error?.errors?.[0]?.code === "form_identifier_not_found") {
         mode = "reset-code";
         status.textContent = "Si existe una cuenta con ese correo, recibirás un código para recuperar el acceso.";
+      } else if (error?.errors?.[0]?.code === "form_password_length_too_short") {
+        setError(password, `Usa al menos ${passwordMinLength} caracteres.`);
+        password.focus();
       } else status.textContent = authError(error);
       password.value = "";
+      passwordConfirm.value = "";
     } finally { busy = false; render(); }
   });
   render();
   try {
     adapter = providedAdapter || await loadAuth();
+    const settings = adapter.clerk?.environment?.userSettings?.passwordSettings;
+    const configuredMinimum = Number(settings?.minLength ?? settings?.min_length);
+    if (Number.isInteger(configuredMinimum) && configuredMinimum > 0) {
+      passwordMinLength = configuredMinimum;
+      password.minLength = configuredMinimum;
+      passwordRequirement.textContent = `Para crear o cambiar la contraseña, usa al menos ${configuredMinimum} caracteres.`;
+      passwordRequirement.hidden = false;
+    }
     const user = await adapter.restore();
-    if (user) { location.replace("/"); return; }
-    status.textContent = "Puedes seguir usando el Pomodoro sin cuenta.";
+    if (user) { location.replace(redirectTo); return; }
+    status.textContent = sessionReason === "session-ended"
+      ? "Tu sesión terminó. Inicia sesión de nuevo para volver a las estadísticas."
+      : sessionReason === "session-required"
+        ? "Inicia sesión para consultar tus estadísticas."
+        : "Puedes seguir usando el Pomodoro sin cuenta.";
   } catch {
     adapter = null;
     status.textContent = "No se pudo conectar con el servicio de cuentas. Recarga la página para reintentar. El Pomodoro sigue disponible sin cuenta.";

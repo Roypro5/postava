@@ -1,0 +1,23 @@
+Actúa como un Desarrollador Frontend Senior y Diseñador UI/UX especializado en dashboards de salud y productividad.
+Estoy desarrollando una aplicación web que combina la técnica Pomodoro con detección de postura en tiempo real mediante cámara (usando puntos de referencia corporales tipo MediaPipe Pose: orejas, nariz, hombros y caderas).
+Necesito que generes los componentes y gráficos de estadísticas diarias para visualizar los problemas de postura del usuario.
+### 1. Métricas e incidencias posturales que detecta la app:
+1. Cuello adelantado / Agachado ("Text Neck"): Inclinación excesiva del cuello hacia la pantalla o hacia abajo (medido por el ángulo oreja-hombro respecto a la vertical).
+2. Hombros caídos / Encorvados: Espalda curvada y hombros proyectados hacia adelante (medido por la alineación hombro-pecho/cadera).
+3. Desnivel de hombros: Asimetría lateral en el eje Y entre el hombro izquierdo y el hombro derecho.
+4. Distancia inadecuada a la pantalla: Usuario demasiado cerca o lejos de la cámara.
+### 2. Lo que debe incluir el panel de gráficos:
+- Vista agrupada por DÍAS (últimos 7 días y filtro mensual):
+  a) Gráfico de Barras Apiladas o Líneas temporales: Tiempo total en postura correcta vs. tiempo con incidencias por cada día, desglosado por tipo de problema (minutos con cuello caído, minutos con hombros desnivelados, etc.).
+  b) Gráfico de Radar o Pastel/Donut: Distribución del "Top de malos hábitos" del usuario (cuál es el error más recurrente).
+  c) Posture Score Diario (Gauge / Medidor de 0 a 100): Puntuación de salud postural calculada por día y correlacionada con los bloques Pomodoro completados.
+  d) Mapa de calor o timeline por bloques Pomodoro: Visualizar en qué momentos del día (o a partir de qué bloque Pomodoro) la fatiga provoca que la postura decaiga más.
+### 3. Requisitos técnicos:
+- Framework/Librería: [Ej: React con Tailwind CSS y Recharts / Chart.js / Tremor / Vanilla JS + Canvas].
+- Proporciona un set de datos de prueba (mock data en formato JSON) coherente y realista para al menos 7 días y varias sesiones Pomodoro al día.
+- El diseño debe ser moderno, limpio (estilo dashboard dark/light mode intuitivo) y enfocado en la salud y ergonomía.
+- Añade tooltips explicativos para que el usuario entienda qué significa cada métrica.
+Por favor, genera:
+1. El esquema de datos JSON mock con las métricas diarias y por sesión Pomodoro.
+2. El código completo y funcional de los componentes de gráficos.
+3. Breve explicación de cómo conectar los eventos de la cámara/detección con estas métricas.

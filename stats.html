@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Postava · Estadísticas</title>
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/stats.css">
+  <script>
+    (() => {
+      let pref = "auto";
+      try { pref = localStorage.getItem("postava.theme") || "auto"; } catch {}
+      document.documentElement.dataset.theme =
+        pref === "dark" || (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches)
+          ? "dark" : "light";
+      document.documentElement.dataset.themePref = pref;
+    })();
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <div class="shell stats-shell">
+    <header class="nav stats-nav">
+      <a class="nav-brand stats-brand" href="/" aria-label="Volver a Postava">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="12" cy="6" r="3"/><path d="M5 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/></svg></span>
+        <span class="brand-name">Postava</span>
+      </a>
+      <p class="nav-tagline">Lectura diaria de tu postura</p>
+      <a class="nav-login" href="/">Temporizador</a>
+      <div id="stats-account" class="stats-account" hidden>
+        <span id="stats-user" class="account-name"></span>
+        <button id="stats-signout" class="nav-login" type="button">Cerrar sesión</button>
+      </div>
+      <div class="theme-switch" role="group" aria-label="Tema de la interfaz">
+        <button type="button" class="theme-opt" data-theme-set="light" aria-pressed="false" title="Tema claro">
+          <span class="sr-only">Tema claro</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M3.5 12H1.3M22.7 12h-2.2M5.9 5.9 4.4 4.4M19.6 19.6l-1.5-1.5M18.1 5.9l1.5-1.5M4.4 19.6l1.5-1.5"/>
+          </svg>
+        </button>
+        <button type="button" class="theme-opt" data-theme-set="auto" aria-pressed="true" title="Seguir al sistema">
+          <span class="sr-only">Seguir al sistema</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.6"/><path d="M12 3.4a8.6 8.6 0 0 1 0 17.2z" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+        <button type="button" class="theme-opt" data-theme-set="dark" aria-pressed="false" title="Tema oscuro">
+          <span class="sr-only">Tema oscuro</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.5 14.5A8.6 8.6 0 0 1 9.5 3.5a8.6 8.6 0 1 0 11 11z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="stats-heading">
+        <div>
+          <p class="eyebrow">Resumen diario</p>
+          <h1>Tu postura, <em>en perspectiva.</em></h1>
+          <p class="heading-note">Pequeñas señales para hacer que el próximo bloque se sienta mejor.</p>
+        </div>
+        <div class="period-control" role="group" aria-label="Periodo de estadísticas">
+          <button class="period active" data-period="7">7 días</button>
+          <button class="period" data-period="30">Mensual</button>
+        </div>
+      </section>
+
+      <section class="daily-grid" aria-label="Resumen del periodo">
+        <article class="card score-panel">
+          <div class="panel-top"><p class="eyebrow">Posture Score</p><span class="info" tabindex="0" data-tip="Combina postura correcta, incidencias sostenidas y regularidad entre sesiones.">i</span></div>
+          <div class="score-number"><strong id="score">84</strong><span>/100</span></div>
+          <p id="scoreNote" class="score-note">Tu mejor ritmo empieza por aquí.</p>
+          <div class="score-rule"><i id="scoreFill"></i></div>
+        </article>
+        <article class="card duration-panel">
+          <p class="eyebrow">Tiempo observado</p>
+          <strong id="focusTime" class="duration">10 h 59 min</strong>
+          <p class="muted-line"><span class="status-dot good"></span><span id="correctTime">9 h 23 min</span> en postura correcta</p>
+          <div id="durationHistogram" class="mini-histogram" aria-label="Histograma de minutos observados por día"></div>
+        </article>
+        <article class="card focus-panel">
+          <p class="eyebrow">Ritmo de enfoque</p>
+          <strong id="pomodoros" class="focus-number">28</strong><span class="unit">Pomodoros</span>
+          <p class="muted-line">Media de <b id="sessionAvg">4,0</b> por día</p>
+          <a class="quiet-link" href="/">Iniciar una sesión <span aria-hidden="true">→</span></a>
+        </article>
+      </section>
+
+      <section class="card daily-bars-card">
+        <header class="section-head">
+          <div><p class="eyebrow">Semana de un vistazo</p><h2>Postura por franja</h2></div>
+          <span class="info" tabindex="0" data-tip="Cada barra representa un día. La altura es el Posture Score; el color resume el estado predominante.">i</span>
+        </header>
+        <div id="dailyBars" class="daily-bars" role="img" aria-label="Barras verticales del Posture Score diario"></div>
+        <div class="daily-axis"><span>0</span><span>50</span><span>100</span></div>
+      </section>
+
+      <div class="content-grid">
+        <section class="card sessions-card">
+          <header class="section-head">
+            <div><p class="eyebrow">Actividad</p><h2>Sesiones recientes</h2></div>
+            <span id="sessionCount" class="count-pill">28</span>
+          </header>
+          <div id="sessionsList" class="sessions-list"></div>
+        </section>
+        <section class="card distribution-card">
+          <header class="section-head">
+            <div><p class="eyebrow">Calidad de la atención</p><h2>Distribución del tiempo</h2></div>
+            <span class="info" tabindex="0" data-tip="Good: postura estable. Normal: pequeñas desviaciones. Bad: incidencias sostenidas que conviene revisar.">i</span>
+          </header>
+          <div class="distribution-total"><strong id="distributionTotal">10 h 59 min</strong><span>tiempo analizado</span></div>
+          <div id="distributionBar" class="distribution-bar" role="img" aria-label="Distribución entre postura buena, normal y mejorable"></div>
+          <div id="distributionLegend" class="distribution-legend"></div>
+          <div class="incident-breakdown">
+            <p class="eyebrow">Incidencias por tipo</p>
+            <div id="habitList" class="habit-list"></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="card fatigue-card">
+        <header class="section-head">
+          <div><p class="eyebrow">Carga acumulada</p><h2>Fatiga por bloques</h2><p class="section-note">Detecta cuándo conviene levantarte antes de que la señal se convierta en aviso.</p></div>
+          <span class="info" tabindex="0" data-tip="Índice relativo de fatiga postural a partir de incidencias y tiempo consecutivo frente a pantalla.">i</span>
+        </header>
+        <div id="fatigueMap" class="fatigue-map"></div>
+        <div class="fatigue-scale"><span>Baja</span><i></i><span>Alta</span></div>
+      </section>
+
+      <details class="how card">
+        <summary><span class="eyebrow">Privacidad y conexión con MediaPipe</span><span class="chevron"></span></summary>
+        <div>
+          <p>Estas cifras de demostración viven en <code>stats-data.json</code>. En producción, cada resultado de <code>PoseLandmarker</code> puede convertirse en un evento de sesión:</p>
+          <pre>recordPostureEvent({ timestamp, durationMs, issueKey, score })</pre>
+          <p>Agrupa los eventos por día y bloque de enfoque; conserva solo agregados locales. El vídeo y los landmarks no tienen que salir del navegador.</p>
+        </div>
+      </details>
+    </main>
+    <footer class="footer"><p>Datos de ejemplo para explorar tu semana. No son una evaluación médica.</p></footer>
+  </div>
+  <script type="module" src="/theme.js"></script>
+  <script type="module" src="/stats.js"></script>
+</body>
+</html>

@@ -2,12 +2,14 @@
 import { loadAuth } from "/assets/auth-adapter.bundle.js";
 
 const link = document.querySelector(".nav-login");
+const statsLink = document.querySelector(".nav-stats-link");
 async function mountAccount() {
   if (!link) return;
   try {
     const adapter = await loadAuth();
     const user = await adapter.restore();
     if (!user) return;
+    if (statsLink) statsLink.hidden = false;
     const button = document.createElement("button");
     button.type = "button"; button.className = "nav-login";
     button.textContent = "Cerrar sesión";
@@ -22,7 +24,11 @@ async function mountAccount() {
       catch { button.textContent = "Reintentar cierre"; button.disabled = false; }
     });
     adapter.clerk.addListener(({ session }) => {
-      if (!session) { label.remove(); button.replaceWith(link); }
+      if (!session) {
+        if (statsLink) statsLink.hidden = true;
+        label.remove();
+        button.replaceWith(link);
+      }
     });
   } catch {
     link.title = "Servicio de cuentas no disponible. El Pomodoro sigue funcionando.";

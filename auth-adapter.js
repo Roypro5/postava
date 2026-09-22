@@ -140,8 +140,9 @@ export function authError(error) {
   if (code === "form_code_incorrect") return "El código no es válido. Revísalo e inténtalo de nuevo.";
   if (code === "verification_expired") return "El código ha caducado. Solicita otro.";
   if (code === "form_password_pwned") return "Esta contraseña aparece en filtraciones. Elige otra más segura.";
-  if (code === "form_password_length_too_short") return "La contraseña es demasiado corta. Usa al menos 8 caracteres.";
-  if (code === "form_identifier_exists") return "No se pudo crear la cuenta. Intenta iniciar sesión o recuperar el acceso.";
+  if (code === "form_password_length_too_short")
+    return "La contraseña no cumple la longitud mínima configurada para las cuentas. Prueba con una frase más larga.";
+  if (code === "form_identifier_exists") return "Este correo ya está registrado. Inicia sesión o usa «¿Olvidaste tu contraseña?» para recuperar el acceso.";
   if (error?.status === 429 || code === "too_many_requests") return "Demasiados intentos. Espera unos minutos antes de volver a intentarlo.";
   if (error?.message === "INCOMPLETE_ACCOUNT") return "La cuenta requiere datos adicionales. Contacta con la administración de Postava.";
   if (error?.message === "UNSUPPORTED_FACTOR") return "Tu cuenta requiere un método de verificación no disponible en esta pantalla.";
