@@ -198,3 +198,68 @@ test("handlers enforce same-origin, account authentication, and explicit DB erro
   assert.equal(accountChanged.statusCode, 409);
   assert.deepEqual(accountChanged.body, { error: "ACCOUNT_CHANGED" });
 });
+
+test("two authenticated handler identities cannot read or retry each other's completed blocks", async () => {
+  const rows = new Map();
+  const pool = {
+    async query(text, values) {
+      if (text.includes("INSERT INTO posture_stats_sessions")) {
+        const [userId, id, startedAt, durationMinutes, goodMs, badMs, issues, issuesUnit] = values;
+        const key = `${userId}:${id}`;
+        if (rows.has(key)) return { rowCount: 0, rows: [] };
+        rows.set(key, {
+          userId,
+          started_at: startedAt,
+          duration_minutes: durationMinutes,
+          good_ms: goodMs,
+          bad_ms: badMs,
+          issues: JSON.parse(issues),
+          issues_unit: issuesUnit,
+        });
+        return { rowCount: 1, rows: [{ session_id: id }] };
+      }
+      assert.match(text, /WHERE user_id = \$1/);
+      return { rows: [...rows.values()].filter((row) => row.userId === values[0]) };
+    },
+  };
+  const handlers = createStatsHandlers({
+    store: createStatsStore(pool),
+    authenticatedPresence: (req) => req.user ? { userId: req.user } : null,
+    requestHasPublicOrigin: () => true,
+  });
+  const accountA = "user_accountA1";
+  const accountB = "user_accountB2";
+  const blockA = sessionBody({ expectedUserId: accountA });
+  const blockB = sessionBody({
+    id: "979073a0-5957-4142-a2ac-48a1d6f8dcbc",
+    expectedUserId: accountB,
+    durationMinutes: 20,
+  });
+  const post = async (user, body) => {
+    const response = responseStub();
+    await handlers.post({ user, body }, response);
+    return response;
+  };
+  const get = async (user) => {
+    const response = responseStub();
+    await handlers.get({ user, query: { days: "7" } }, response);
+    assert.equal(response.statusCode, 200);
+    return response.body;
+  };
+
+  assert.equal((await post(accountA, blockA)).statusCode, 201);
+  assert.equal((await get(accountA)).days[0].pomodoros, 1);
+  assert.deepEqual((await get(accountB)).days, []);
+  // Simulate an upload whose network response was lost: retrying as B must
+  // fail even with the original block ID; retrying as A is idempotent.
+  assert.equal((await post(accountB, blockA)).statusCode, 409);
+  assert.deepEqual((await get(accountB)).days, []);
+  assert.equal((await post(accountA, blockA)).statusCode, 200);
+  assert.equal((await get(accountA)).days[0].pomodoros, 1);
+  assert.equal((await post(accountB, blockB)).statusCode, 201);
+  assert.equal((await get(accountB)).days[0].focusMinutes, 20);
+  assert.equal((await get(accountA)).days[0].focusMinutes, 25);
+  assert.equal(rows.size, 2);
+  assert.equal((await post(accountA, { ...blockA, video: "frames" })).statusCode, 400);
+  assert.equal((await post(accountA, { ...blockA, landmarks: [] })).statusCode, 400);
+});
