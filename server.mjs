@@ -16,6 +16,7 @@ import {
   readPresenceCookie,
   requestHasPublicOrigin,
 } from "./server/session-cookie.mjs";
+import { createStatsHandlers, statsStore } from "./server/stats-store.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.argv[2]) || Number(process.env.PORT) || 5000;
@@ -113,6 +114,7 @@ export function createApp() {
 
   app.use("/api/auth", noStore);
   app.use("/api/account", noStore);
+  app.use("/api/stats", noStore);
 
   app.get("/api/auth/config", (req, res) => {
     res.json({
@@ -179,10 +181,19 @@ export function createApp() {
     return res.status(204).end();
   });
 
+  const statsHandlers = createStatsHandlers({
+    store: statsStore,
+    authenticatedPresence,
+    requestHasPublicOrigin,
+  });
+  app.get("/api/stats", statsHandlers.get);
+  app.post("/api/stats/sessions", statsHandlers.post);
+
   const publicFiles = new Map([
     ["/index.html", "index.html"],
     ["/stats.css", "stats.css"],
     ["/stats.js", "stats.js"],
+    ["/stats-session.js", "stats-session.js"],
     ["/login.html", "login.html"],
     ["/app.js", "app.js"],
     ["/styles.css", "styles.css"],
@@ -206,19 +217,6 @@ export function createApp() {
     } catch (error) {
       if (error?.code === "SESSION_SECRET_REQUIRED") {
         return res.status(500).type("text").send("Session configuration error");
-      }
-      throw error;
-    }
-  });
-  app.get("/stats-data.json", (req, res) => {
-    try {
-      if (!authenticatedPresence(req)) {
-        return res.status(401).json({ error: "SESSION_REQUIRED" });
-      }
-      return res.sendFile(resolve(root, "stats-data.json"));
-    } catch (error) {
-      if (error?.code === "SESSION_SECRET_REQUIRED") {
-        return res.status(500).json({ error: "SESSION_CONFIGURATION_ERROR" });
       }
       throw error;
     }

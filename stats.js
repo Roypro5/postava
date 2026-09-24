@@ -2,13 +2,46 @@ import { loadAuth } from "/assets/auth-adapter.bundle.js";
 
 const $ = (id) => document.getElementById(id);
 const state = { days: [], data: null, period: 7 };
+let statsLoadInFlight = false;
+let statsReloadRequested = false;
+let authListenerAdded = false;
+const issueLabels = {
+  neck: "Cuello",
+  shoulders: "Hombros",
+  tilt: "Inclinación",
+  distance: "Distancia",
+};
 
 function redirectToSignIn(reason = "") {
   const suffix = reason ? `&reason=${encodeURIComponent(reason)}` : "";
   location.replace(`/sign-in?redirect=/stats${suffix}`);
 }
 
-async function load() {
+function showLoadState(message, kind = "loading") {
+  const status = $("stats-load-state");
+  status.replaceChildren();
+  const text = document.createElement("span");
+  text.textContent = message;
+  status.append(text);
+  if (kind === "error") {
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "stats-retry";
+    retry.textContent = "Reintentar";
+    retry.addEventListener("click", loadStats);
+    status.append(" ", retry);
+  }
+  status.className = `stats-load-state ${kind}`;
+  status.hidden = false;
+}
+
+async function loadStats() {
+  if (statsLoadInFlight) {
+    statsReloadRequested = true;
+    return;
+  }
+  statsLoadInFlight = true;
+  showLoadState("Cargando tus estadísticas…");
   try {
     const adapter = await loadAuth();
     const user = await adapter.restore();
@@ -20,120 +53,245 @@ async function load() {
     const signOut = $("stats-signout");
     $("stats-user").textContent = user.primaryEmailAddress?.emailAddress || "Sesión iniciada";
     account.hidden = false;
-    signOut.addEventListener("click", async () => {
-      signOut.disabled = true;
-      signOut.textContent = "Cerrando…";
-      try {
-        await adapter.signOut();
-        location.replace("/");
-      } catch {
-        signOut.disabled = false;
-        signOut.textContent = "Reintentar cierre";
-      }
-    });
-    adapter.clerk.addListener(({ session }) => {
-      if (!session) redirectToSignIn("session-ended");
-    });
-    const response = await fetch("/stats-data.json");
+    if (!signOut.dataset.listener) {
+      signOut.dataset.listener = "true";
+      signOut.addEventListener("click", async () => {
+        signOut.disabled = true;
+        signOut.textContent = "Cerrando…";
+        try {
+          await adapter.signOut();
+          location.replace("/");
+        } catch {
+          signOut.disabled = false;
+          signOut.textContent = "Reintentar cierre";
+        }
+      });
+    }
+    if (!authListenerAdded) {
+      authListenerAdded = true;
+      adapter.clerk.addListener(({ session }) => {
+        if (!session) redirectToSignIn("session-ended");
+      });
+    }
+    const response = await fetch(`/api/stats?days=${state.period}`, { credentials: "same-origin" });
     if (response.status === 401) {
       redirectToSignIn("session-ended");
       return;
     }
-    if (!response.ok) throw new Error("No se pudieron cargar los datos");
-    state.data = await response.json();
+    if (!response.ok) throw new Error("No se pudieron cargar tus estadísticas.");
+    const data = await response.json();
+    state.data = {
+      days: Array.isArray(data.days) ? data.days : [],
+      habitDistribution: Array.isArray(data.habitDistribution) ? data.habitDistribution : [],
+      fatigue: Array.isArray(data.fatigue) ? data.fatigue : [],
+    };
     state.days = state.data.days;
+    $("stats-load-state").hidden = true;
+    if (!state.days.some((day) => Array.isArray(day.sessions) && day.sessions.length)) {
+      showLoadState("Aún no hay sesiones de enfoque completadas. Cuando completes un bloque, tus estadísticas aparecerán aquí.", "empty");
+    }
     render();
-  } catch (error) {
-    document.querySelector("main").innerHTML = `<section class="card stats-error"><p class="eyebrow">Estadísticas</p><h1>No se han podido cargar</h1><p>Comprueba tu conexión y recarga para intentarlo de nuevo.</p><a class="nav-login" href="/">Volver al temporizador</a></section>`;
+  } catch {
+    showLoadState("No se han podido cargar tus estadísticas. Comprueba la conexión e inténtalo de nuevo.", "error");
+  } finally {
+    statsLoadInFlight = false;
+    if (statsReloadRequested) {
+      statsReloadRequested = false;
+      loadStats();
+    }
   }
 }
 
 function activeDays() {
-  return state.period === 7 ? state.days.slice(-7) : state.days;
+  return state.days;
+}
+
+function number(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
 function total(key) {
-  return activeDays().reduce((sum, day) => sum + day[key], 0);
+  return activeDays().reduce((sum, day) => sum + number(day[key]), 0);
 }
 
 function formatMinutes(minutes) {
-  const hours = Math.floor(minutes / 60);
-  return hours ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+  const safe = Math.round(number(minutes));
+  const hours = Math.floor(safe / 60);
+  return hours ? `${hours} h ${safe % 60} min` : `${safe} min`;
+}
+
+function make(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined) element.textContent = String(text);
+  return element;
+}
+
+function appendEmpty(container, message) {
+  container.replaceChildren(make("p", "stats-empty", message));
 }
 
 function render() {
   const days = activeDays();
-  const focus = total("focusMinutes");
-  const correct = total("correctMinutes");
-  const score = Math.round(days.reduce((sum, day) => sum + day.score, 0) / days.length);
-  const pomodoros = total("pomodoros");
+  const focus = days.reduce((sum, day) => sum + number(day.focusMinutes), 0);
+  const correct = Math.min(focus, days.reduce((sum, day) => sum + number(day.correctMinutes), 0));
+  const measured = Math.min(focus, days.reduce((sum, day) => sum + number(day.measuredMinutes), 0));
+  const pomodoros = days.reduce((sum, day) => sum + number(day.pomodoros), 0);
+  const scoredDays = days.filter((day) => day.score !== null && Number.isFinite(Number(day.score)));
+  const score = scoredDays.length
+    ? Math.round(scoredDays.reduce((sum, day) => sum + number(day.score), 0) / scoredDays.length)
+    : null;
 
-  $("score").textContent = score;
-  $("scoreFill").style.width = `${score}%`;
-  $("scoreNote").textContent = score >= 85 ? "Un ritmo estable y atento." : "Pequeños ajustes, gran diferencia.";
+  $("score").textContent = score === null ? "—" : score;
+  $("scoreFill").style.width = `${score ?? 0}%`;
+  $("scoreNote").textContent = score === null
+    ? "Completa una sesión para ver tu puntuación."
+    : score >= 85 ? "Un ritmo estable y atento." : "Pequeños ajustes, gran diferencia.";
   $("focusTime").textContent = formatMinutes(focus);
   $("correctTime").textContent = formatMinutes(correct);
   $("pomodoros").textContent = pomodoros;
-  $("sessionAvg").textContent = (pomodoros / days.length).toLocaleString("es-ES", { maximumFractionDigits: 1 });
+  $("sessionAvg").textContent = (pomodoros / Math.max(days.length, 1)).toLocaleString("es-ES", { maximumFractionDigits: 1 });
   $("sessionCount").textContent = pomodoros;
-  $("distributionTotal").textContent = formatMinutes(focus);
+  $("distributionTotal").textContent = formatMinutes(measured);
 
   renderHistogram(days);
   renderDailyBars(days);
   renderSessions(days);
-  renderDistribution(days, focus, correct);
-  renderHabits(state.data.habitDistribution || []);
-  renderFatigue(state.data.fatigue || []);
+  renderDistribution(measured, correct);
+  renderHabits(state.data?.habitDistribution || []);
+  renderFatigue(state.data?.fatigue || []);
 }
 
 function renderHistogram(days) {
-  const max = Math.max(...days.map((day) => day.focusMinutes), 1);
-  $("durationHistogram").innerHTML = days.map((day) => `<i class="histogram-bar" style="height:${day.focusMinutes / max * 100}%" title="${day.label}: ${day.focusMinutes} minutos"></i>`).join("");
+  const container = $("durationHistogram");
+  container.replaceChildren();
+  const max = Math.max(...days.map((day) => number(day.focusMinutes)), 1);
+  days.forEach((day) => {
+    const bar = make("i", "histogram-bar");
+    bar.style.height = `${number(day.focusMinutes) / max * 100}%`;
+    bar.title = `${day.label || day.date || ""}: ${number(day.focusMinutes)} minutos`;
+    container.append(bar);
+  });
+  if (!days.length) appendEmpty(container, "Sin actividad");
 }
 
 function renderDailyBars(days) {
-  $("dailyBars").innerHTML = days.map((day) => {
-    const tone = day.score >= 85 ? "var(--accent)" : day.score >= 75 ? "var(--warn)" : "var(--bad)";
-    return `<div class="daily-column"><strong>${day.score}</strong><i style="--score:${day.score};--bar-color:${tone}" title="${day.label}: Posture Score ${day.score}"></i><span>${day.label.split(" ")[0]}</span></div>`;
-  }).join("");
+  const container = $("dailyBars");
+  container.replaceChildren();
+  days.forEach((day) => {
+    const hasScore = day.score !== null && Number.isFinite(Number(day.score));
+    const score = hasScore ? Math.min(100, number(day.score)) : 0;
+    const column = make("div", "daily-column");
+    column.append(make("strong", "", hasScore ? score : "—"));
+    const bar = make("i");
+    const tone = score >= 85 ? "var(--accent)" : score >= 75 ? "var(--warn)" : "var(--bad)";
+    bar.style.setProperty("--score", score);
+    bar.style.setProperty("--bar-color", tone);
+    bar.title = `${day.label || day.date || ""}: Posture Score ${score}`;
+    column.append(bar, make("span", "", String(day.label || day.date || "").split(" ")[0]));
+    container.append(column);
+  });
+  if (!days.length) appendEmpty(container, "Sin actividad");
 }
 
 function renderSessions(days) {
-  const sessions = days.flatMap((day) => day.sessions.map((session) => ({ ...session, label: day.label }))).reverse().slice(0, 8);
-  $("sessionsList").innerHTML = sessions.map((session) => {
-    const stateClass = session.score >= 85 ? "good" : "normal";
-    return `<div class="session-row"><i class="session-state ${stateClass}" aria-hidden="true"></i><span><strong class="session-time">${session.start}</strong><span class="session-date">${session.label}</span></span><span class="session-duration">${session.minutes} min</span><strong class="session-score">${session.score}</strong></div>`;
-  }).join("");
+  const container = $("sessionsList");
+  container.replaceChildren();
+  const sessions = days.flatMap((day) =>
+    (Array.isArray(day.sessions) ? day.sessions : []).map((session) => ({ ...session, label: day.label || day.date || "" }))
+  ).reverse().slice(0, 8);
+  sessions.forEach((session) => {
+    const row = make("div", "session-row");
+    const hasScore = session.score !== null && Number.isFinite(Number(session.score));
+    const score = hasScore ? Math.min(100, number(session.score)) : null;
+    const state = make("i", `session-state${score === null || score < 85 ? " normal" : ""}`);
+    state.setAttribute("aria-hidden", "true");
+    const description = make("span");
+    description.append(make("strong", "session-time", session.start || "—"));
+    description.append(make("span", "session-date", session.label));
+    row.append(state, description, make("span", "session-duration", `${number(session.minutes)} min`), make("strong", "session-score", score === null ? "—" : `${score}`));
+    container.append(row);
+  });
+  if (!sessions.length) appendEmpty(container, "Tus sesiones completadas aparecerán aquí.");
 }
 
-function renderDistribution(days, focus, correct) {
-  const incidents = focus - correct;
-  const good = Math.round(correct * .76);
-  const normal = Math.round(correct * .24);
-  const bad = incidents;
-  const sum = good + normal + bad;
+function renderDistribution(focus, correct) {
+  const incidentMinutes = Math.max(0, focus - correct);
   const groups = [
-    { key: "good", label: "Good", value: good },
-    { key: "normal", label: "Normal", value: normal },
-    { key: "bad", label: "Bad", value: bad },
+    { key: "good", label: "Postura correcta", value: correct },
+    { key: "bad", label: "Con incidencias", value: incidentMinutes },
   ];
-  $("distributionBar").innerHTML = groups.map((group) => `<i class="${group.key}" style="width:${group.value / sum * 100}%" title="${group.label}: ${group.value} minutos"></i>`).join("");
-  $("distributionLegend").innerHTML = groups.map((group) => `<div class="legend-item"><span><i class="${group.key}"></i>${group.label}</span><strong>${group.value} min</strong></div>`).join("");
+  const bar = $("distributionBar");
+  const legend = $("distributionLegend");
+  bar.replaceChildren();
+  legend.replaceChildren();
+  groups.forEach((group) => {
+    const segment = make("i", group.key);
+    segment.style.width = `${focus ? group.value / focus * 100 : 0}%`;
+    segment.title = `${group.label}: ${Math.round(group.value)} minutos`;
+    bar.append(segment);
+    const item = make("div", "legend-item");
+    const label = make("span");
+    const marker = make("i", group.key);
+    label.append(marker, document.createTextNode(group.label));
+    item.append(label, make("strong", "", `${Math.round(group.value)} min`));
+    legend.append(item);
+  });
+}
+
+function validColor(value) {
+  return typeof value === "string" && /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value) ? value : "var(--accent)";
 }
 
 function renderHabits(habits) {
-  const totalMinutes = habits.reduce((sum, habit) => sum + habit.minutes, 0) || 1;
-  $("habitList").innerHTML = habits.map((habit) => `<div class="habit-row"><span class="habit-label"><i style="background:${habit.color}"></i>${habit.label}</span><span class="habit-value">${habit.minutes} min</span><span class="habit-meter"><i style="width:${habit.minutes / totalMinutes * 100}%;background:${habit.color}"></i></span></div>`).join("");
+  const container = $("habitList");
+  container.replaceChildren();
+  if (!habits.length) {
+    appendEmpty(container, "Sin incidencias registradas.");
+    return;
+  }
+  const max = Math.max(...habits.map((habit) => number(habit.minutes)), 1);
+  habits.forEach((habit) => {
+    const color = validColor(habit.color);
+    const row = make("div", "habit-row");
+    const label = make("span", "habit-label");
+    const dot = make("i");
+    dot.style.backgroundColor = color;
+    label.append(dot, document.createTextNode(String(habit.label || issueLabels[habit.key] || "Incidencia")));
+    row.append(label, make("span", "habit-value", `${Math.round(number(habit.minutes))} min`));
+    const meter = make("span", "habit-meter");
+    const fill = make("i");
+    fill.style.width = `${number(habit.minutes) / max * 100}%`;
+    fill.style.backgroundColor = color;
+    meter.append(fill);
+    row.append(meter);
+    container.append(row);
+  });
 }
 
 function renderFatigue(items) {
-  $("fatigueMap").innerHTML = items.map((item) => `<div class="fatigue-cell" style="--fatigue:${item.value / 2.2}" title="Índice de fatiga ${item.value} sobre 100"><span>${item.label}</span><strong>${item.value}</strong><small>${item.value > 45 ? "Conviene pausar" : item.value > 30 ? "Carga media" : "Ritmo estable"}</small></div>`).join("");
+  const container = $("fatigueMap");
+  container.replaceChildren();
+  if (!items.length) {
+    appendEmpty(container, "Aún no hay datos suficientes para estimar la carga.");
+    return;
+  }
+  items.forEach((item) => {
+    const value = Math.min(100, number(item.value));
+    const cell = make("div", "fatigue-cell");
+    cell.style.setProperty("--fatigue", String(value / 2.2));
+    cell.title = `Índice de fatiga ${value} sobre 100`;
+    cell.append(make("span", "", item.label || ""), make("strong", "", value));
+    cell.append(make("small", "", value > 45 ? "Conviene pausar" : value > 30 ? "Carga media" : "Ritmo estable"));
+    container.append(cell);
+  });
 }
 
 document.querySelectorAll(".period").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".period").forEach((item) => item.classList.toggle("active", item === button));
-  state.period = Number(button.dataset.period);
-  if (state.data) render();
+  state.period = Number(button.dataset.period) === 30 ? 30 : 7;
+  loadStats();
 }));
 
-load();
+loadStats();

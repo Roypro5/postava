@@ -25,3 +25,9 @@ Configuration is automatically provisioned with Clerk. `SESSION_SECRET` signs th
 ## Authentication test limits
 
 Automated checks may validate anonymous pages, client-side validation surfaces, routing, and the protected API's `401`. They must not create external accounts or trigger recovery/verification email delivery without explicit permission. Full email receipt and Production session behavior therefore require an authorized manual test in the matching Clerk environment.
+
+## Private session statistics
+
+Completed focus blocks are saved as aggregates for the account active when the block began through `POST /api/stats/sessions`; `GET /api/stats?days=7|30` reads only that account's sessions for the selected UTC calendar period. Both endpoints require Clerk authentication and the signed presence cookie. Each request is scoped by the server-derived Clerk user ID, not a user ID supplied by the browser. The POST compares that identity to the block's expected account to reject cross-account retries. It also rejects raw video and landmark fields. Sessions are deduplicated by account and client-generated session ID. A guest can still use the timer, but guest activity is not attached to any account. Failed sends are retained in an account-scoped browser queue and can be retried.
+
+The `posture_stats_sessions` table lives in Replit's managed development PostgreSQL database. Publish applies the development schema to the managed production database; never create the table at server startup or run production DDL manually. The old shared demo JSON is removed. Video and landmarks stay on the device; only rounded duration, measured posture time, issue counts, and alert counts are saved. A score remains unavailable when no posture measurements were collected.

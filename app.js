@@ -20,6 +20,9 @@ import {
   metricReport,
   averageMetrics,
 } from "./posture.js";
+import { bindFocusAccount, completedFocusPayload } from "./stats-session.js";
+
+import { loadAuth } from "/assets/auth-adapter.bundle.js";
 
 const WASM_BASE =
   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
@@ -109,6 +112,18 @@ const posture = {
   calibEndsAt: 0,
 };
 
+const focusStats = {
+  accountId: null,
+  startedAt: null,
+  activeSince: null,
+  elapsedMs: 0,
+  goodMs: 0,
+  badMs: 0,
+  alerts: 0,
+  issues: { neck: 0, shoulders: 0, tilt: 0, distance: 0 },
+  activeIssueKeys: new Set(),
+};
+
 let landmarker = null;
 let engineReady = false;
 let stream = null;
@@ -117,6 +132,162 @@ let rafId = null;
 let lastVideoTime = -1;
 let lastInferAt = 0;
 let audioCtx = null;
+let statsAdapterPromise = null;
+let statsAccountId = null;
+let statsPending = [];
+let statsPostInFlight = false;
+let statsStatus;
+
+function ensureStatsStatus() {
+  if (statsStatus) return statsStatus;
+  statsStatus = document.createElement("p");
+  statsStatus.className = "stats-save-status";
+  statsStatus.setAttribute("role", "status");
+  statsStatus.style.color = "var(--bad)";
+  statsStatus.style.fontSize = "0.8rem";
+  statsStatus.style.margin = "12px 0 0";
+  statsStatus.hidden = true;
+  const actions = document.querySelector(".card-timer .actions");
+  if (actions) actions.after(statsStatus);
+  return statsStatus;
+}
+
+function showStatsSaveError(message) {
+  const status = ensureStatsStatus();
+  status.replaceChildren();
+  const text = document.createElement("span");
+  text.textContent = message;
+  status.append(text);
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "stats-save-retry";
+  retry.textContent = "Reintentar";
+  retry.style.marginLeft = "8px";
+  retry.style.padding = "5px 10px";
+  retry.style.borderRadius = "999px";
+  retry.style.border = "1px solid var(--line)";
+  retry.style.background = "var(--surface)";
+  retry.style.color = "var(--ink)";
+  retry.addEventListener("click", retryStatsSaves);
+  status.append(" ", retry);
+  status.hidden = false;
+}
+
+function clearStatsSaveError() {
+  if (statsStatus) {
+    statsStatus.hidden = true;
+    statsStatus.replaceChildren();
+  }
+}
+
+function accountScopedQueueKey(accountId) {
+  return `postava.stats.pending.v2:${accountId}`;
+}
+
+function persistPendingStats(accountId = statsAccountId, pending = statsPending) {
+  if (!accountId) return;
+  try {
+    localStorage.setItem(accountScopedQueueKey(accountId), JSON.stringify(pending));
+  } catch {
+    showStatsSaveError("No se pudo guardar temporalmente el envío fallido. Mantén esta página abierta y reintenta.");
+  }
+}
+
+async function resolveStatsAccount() {
+  if (!statsAdapterPromise) statsAdapterPromise = loadAuth();
+  const adapter = await statsAdapterPromise;
+  const user = await adapter.restore();
+  if (!user?.id) {
+    statsAccountId = null;
+    statsPending = [];
+    return null;
+  }
+  if (statsAccountId !== user.id) {
+    statsAccountId = user.id;
+    try {
+      const saved = JSON.parse(localStorage.getItem(accountScopedQueueKey(user.id)) || "[]");
+      statsPending = Array.isArray(saved) ? saved.filter((item) => item && item.expectedUserId === user.id && typeof item.id === "string") : [];
+    } catch {
+      statsPending = [];
+    }
+  }
+  return user.id;
+}
+
+async function sendStatsSession(session) {
+  const response = await fetch("/api/stats/sessions", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(session),
+  });
+  if (!response.ok) throw new Error(response.status === 401 ? "La sesión de tu cuenta ha caducado." : "No se pudo guardar la sesión.");
+}
+
+async function retryStatsSaves() {
+  if (statsPostInFlight) return;
+  statsPostInFlight = true;
+  const status = ensureStatsStatus();
+  status.textContent = "Guardando estadísticas…";
+  status.hidden = false;
+  let drainingAccountId = null;
+  try {
+    drainingAccountId = await resolveStatsAccount();
+    if (!drainingAccountId) {
+      showStatsSaveError("Inicia sesión para guardar tus estadísticas privadas.");
+      return;
+    }
+    const queue = statsPending;
+    while (queue.length) {
+      if (await resolveStatsAccount() !== drainingAccountId) {
+        throw new Error("La cuenta cambió. Inicia sesión con la cuenta original para reintentar.");
+      }
+      const session = queue[0];
+      await sendStatsSession(session);
+      queue.shift();
+      persistPendingStats(drainingAccountId, queue);
+    }
+    if (statsAccountId === drainingAccountId) clearStatsSaveError();
+  } catch (error) {
+    showStatsSaveError(`${error.message || "No se pudieron guardar tus estadísticas."} Tus sesiones pendientes se conservarán para reintentar.`);
+  } finally {
+    statsPostInFlight = false;
+    if (statsAccountId && statsAccountId !== drainingAccountId && statsPending.length) retryStatsSaves();
+  }
+}
+
+async function recordCompletedFocus() {
+  const session = completedFocusPayload(focusStats, crypto.randomUUID());
+  if (!session) return;
+  const accountId = session.expectedUserId;
+  try {
+    // The completed block belongs to the account bound when focus started,
+    // even if another tab changed Clerk's current account in the meantime.
+    if (statsAccountId === accountId) {
+      statsPending.push(session);
+      persistPendingStats();
+    } else {
+      const key = accountScopedQueueKey(accountId);
+      const saved = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!Array.isArray(saved)) throw new Error("Cola de sesiones no válida");
+      saved.push(session);
+      localStorage.setItem(key, JSON.stringify(saved));
+    }
+    if (await resolveStatsAccount() === accountId) await retryStatsSaves();
+    else showStatsSaveError("Esta sesión pertenece a otra cuenta. Inicia sesión con esa cuenta para enviarla.");
+  } catch (error) {
+    showStatsSaveError(`${error.message || "No se pudieron guardar tus estadísticas."} Mantén esta página abierta y reintenta.`);
+  }
+}
+
+async function resumePendingStats() {
+  try {
+    const accountId = await resolveStatsAccount();
+    if (accountId && statsPending.length) await retryStatsSaves();
+  } catch {
+    // La restauración de la cuenta nunca debe bloquear el temporizador.
+  }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Persistencia de ajustes
@@ -438,6 +609,7 @@ function evaluate(m, now) {
 
   // Fuera de la fase de enfoque solo mostramos el estado, sin avisos ni conteo.
   if (!monitoringActive()) {
+    focusStats.activeIssueKeys.clear();
     setBadge(bad ? "warn" : "good", bad ? "Postura mejorable" : "Postura correcta");
     el.holdFill.style.width = "0%";
     return;
@@ -447,7 +619,18 @@ function evaluate(m, now) {
 
   if (bad) {
     posture.badMs += dt;
+    focusStats.badMs += dt;
     posture.goodStreak = 0;
+    const currentIssueKeys = new Set(issues.map((issue) => issue.key));
+    const issueCounts = {
+      neckDrop: "neck", chinDown: "neck", slump: "neck",
+      sideLean: "shoulders", shoulderTilt: "tilt", proximity: "distance",
+    };
+    for (const issue of issues) {
+      const category = issueCounts[issue.key];
+      if (category && !focusStats.activeIssueKeys.has(issue.key)) focusStats.issues[category] += 1;
+    }
+    focusStats.activeIssueKeys = currentIssueKeys;
     if (posture.badSince === null) posture.badSince = now;
 
     const held = now - posture.badSince;
@@ -468,7 +651,9 @@ function evaluate(m, now) {
     }
   } else {
     posture.goodMs += dt;
+    focusStats.goodMs += dt;
     posture.goodStreak += dt;
+    focusStats.activeIssueKeys.clear();
 
     if (posture.badSince !== null) {
       const shrink = Math.max(0, 1 - posture.goodStreak / RECOVERY_MS);
@@ -495,6 +680,7 @@ function evaluate(m, now) {
 
 function handleNotDetected(now) {
   posture.lastFrameAt = now;
+  focusStats.activeIssueKeys.clear();
   el.holdFill.style.width = "0%";
   setBadge("idle", "No te veo");
   if (now - posture.lastSeenAt > 3000) {
@@ -508,6 +694,7 @@ function handleNotDetected(now) {
 function raiseAlert(issueKey) {
   posture.alerting = true;
   posture.alerts += 1;
+  focusStats.alerts += 1;
   el.alertReason.textContent = ISSUE_TEXT[issueKey];
   el.alertBanner.hidden = false;
   setMessage(ISSUE_TEXT[issueKey]);
@@ -944,6 +1131,30 @@ function phaseDurationMs(phase) {
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
+function beginFocusStats() {
+  if (!focusStats.startedAt) focusStats.startedAt = new Date().toISOString();
+  if (!focusStats.activeSince) focusStats.activeSince = Date.now();
+}
+
+function stopFocusStats() {
+  if (focusStats.activeSince) {
+    focusStats.elapsedMs += Math.max(0, Date.now() - focusStats.activeSince);
+    focusStats.activeSince = null;
+  }
+}
+
+function resetFocusStats() {
+  focusStats.accountId = null;
+  focusStats.startedAt = null;
+  focusStats.activeSince = null;
+  focusStats.elapsedMs = 0;
+  focusStats.goodMs = 0;
+  focusStats.badMs = 0;
+  focusStats.alerts = 0;
+  focusStats.issues = { neck: 0, shoulders: 0, tilt: 0, distance: 0 };
+  focusStats.activeIssueKeys.clear();
+}
+
 function setPhase(phase, autoStart = false) {
   timer.phase = phase;
   timer.total = phaseDurationMs(phase);
@@ -957,9 +1168,21 @@ function setPhase(phase, autoStart = false) {
 
 async function startTimer() {
   ensureAudio(); // el gesto del usuario desbloquea el audio
+  if (timer.phase === "focus" && !focusStats.startedAt) {
+    el.btnStart.disabled = true;
+    try {
+      bindFocusAccount(focusStats, await resolveStatsAccount());
+    } catch {
+      // Guest timer remains available; no private history is attributed.
+      bindFocusAccount(focusStats, null);
+    } finally {
+      el.btnStart.disabled = false;
+    }
+  }
   if (timer.remaining <= 0) timer.remaining = phaseDurationMs(timer.phase);
   timer.endAt = Date.now() + timer.remaining;
   timer.running = true;
+  if (timer.phase === "focus") beginFocusStats();
   el.btnStart.textContent = "Pausar";
   el.timeHint.textContent = timer.phase === "focus" ? "en marcha" : "descansando";
   posture.lastFrameAt = performance.now();
@@ -974,6 +1197,7 @@ async function startTimer() {
 }
 
 function pauseTimer() {
+  if (timer.phase === "focus") stopFocusStats();
   timer.running = false;
   el.btnStart.textContent = "Reanudar";
   el.timeHint.textContent = "en pausa";
@@ -985,6 +1209,8 @@ function pauseTimer() {
 }
 
 function resetTimer() {
+  stopFocusStats();
+  resetFocusStats();
   timer.running = false;
   timer.session = 1;
   timer.completed = 0;
@@ -1001,12 +1227,15 @@ function resetTimer() {
   updateStats(true);
 }
 
-function completePhase() {
+function completePhase({ skipped = false } = {}) {
   soundPhaseEnd();
   clearAlert();
 
   if (timer.phase === "focus") {
+    stopFocusStats();
     timer.completed += 1;
+    if (!skipped && focusStats.elapsedMs > 0) recordCompletedFocus();
+    resetFocusStats();
     setPhase("break", true);
     el.timeHint.textContent = "descansa y estírate";
     if (el.camOnlyRunning.checked) stopCamera();
@@ -1022,7 +1251,7 @@ function completePhase() {
 
 function skipPhase() {
   timer.remaining = 0;
-  completePhase();
+  completePhase({ skipped: true });
 }
 
 function tick() {
@@ -1147,6 +1376,7 @@ setPhase("focus");
 setBadge("idle", "Sin monitorizar");
 setInterval(tick, 250);
 updateStats(true);
+resumePendingStats();
 initEngine();
 
 /* Gancho de depuración: abre la página con ?debug=1 para simular posturas

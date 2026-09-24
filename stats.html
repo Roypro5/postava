@@ -56,6 +56,7 @@
     </header>
 
     <main id="main">
+      <p id="stats-load-state" class="stats-load-state loading" role="status" aria-live="polite">Cargando tus estadísticas…</p>
       <section class="stats-heading">
         <div>
           <p class="eyebrow">Resumen diario</p>
@@ -70,21 +71,21 @@
 
       <section class="daily-grid" aria-label="Resumen del periodo">
         <article class="card score-panel">
-          <div class="panel-top"><p class="eyebrow">Posture Score</p><span class="info" tabindex="0" data-tip="Combina postura correcta, incidencias sostenidas y regularidad entre sesiones.">i</span></div>
-          <div class="score-number"><strong id="score">84</strong><span>/100</span></div>
-          <p id="scoreNote" class="score-note">Tu mejor ritmo empieza por aquí.</p>
+          <div class="panel-top"><p class="eyebrow">Posture Score</p><span class="info" tabindex="0" data-tip="Porcentaje de tiempo medido con postura correcta. No se calcula si la cámara no registró postura.">i</span></div>
+          <div class="score-number"><strong id="score">—</strong><span>/100</span></div>
+          <p id="scoreNote" class="score-note">Cargando estadísticas…</p>
           <div class="score-rule"><i id="scoreFill"></i></div>
         </article>
         <article class="card duration-panel">
           <p class="eyebrow">Tiempo observado</p>
-          <strong id="focusTime" class="duration">10 h 59 min</strong>
-          <p class="muted-line"><span class="status-dot good"></span><span id="correctTime">9 h 23 min</span> en postura correcta</p>
+          <strong id="focusTime" class="duration">0 min</strong>
+          <p class="muted-line"><span class="status-dot good"></span><span id="correctTime">0 min</span> en postura correcta</p>
           <div id="durationHistogram" class="mini-histogram" aria-label="Histograma de minutos observados por día"></div>
         </article>
         <article class="card focus-panel">
           <p class="eyebrow">Ritmo de enfoque</p>
-          <strong id="pomodoros" class="focus-number">28</strong><span class="unit">Pomodoros</span>
-          <p class="muted-line">Media de <b id="sessionAvg">4,0</b> por día</p>
+          <strong id="pomodoros" class="focus-number">0</strong><span class="unit">Pomodoros</span>
+          <p class="muted-line">Media de <b id="sessionAvg">0</b> por día</p>
           <a class="quiet-link" href="/">Iniciar una sesión <span aria-hidden="true">→</span></a>
         </article>
       </section>
@@ -102,16 +103,16 @@
         <section class="card sessions-card">
           <header class="section-head">
             <div><p class="eyebrow">Actividad</p><h2>Sesiones recientes</h2></div>
-            <span id="sessionCount" class="count-pill">28</span>
+            <span id="sessionCount" class="count-pill">0</span>
           </header>
           <div id="sessionsList" class="sessions-list"></div>
         </section>
         <section class="card distribution-card">
           <header class="section-head">
             <div><p class="eyebrow">Calidad de la atención</p><h2>Distribución del tiempo</h2></div>
-            <span class="info" tabindex="0" data-tip="Good: postura estable. Normal: pequeñas desviaciones. Bad: incidencias sostenidas que conviene revisar.">i</span>
+          <span class="info" tabindex="0" data-tip="Compara tiempo de postura correcta y tiempo con incidencias medidas. El resto no tuvo medición.">i</span>
           </header>
-          <div class="distribution-total"><strong id="distributionTotal">10 h 59 min</strong><span>tiempo analizado</span></div>
+          <div class="distribution-total"><strong id="distributionTotal">0 min</strong><span>tiempo medido</span></div>
           <div id="distributionBar" class="distribution-bar" role="img" aria-label="Distribución entre postura buena, normal y mejorable"></div>
           <div id="distributionLegend" class="distribution-legend"></div>
           <div class="incident-breakdown">
@@ -133,13 +134,11 @@
       <details class="how card">
         <summary><span class="eyebrow">Privacidad y conexión con MediaPipe</span><span class="chevron"></span></summary>
         <div>
-          <p>Estas cifras de demostración viven en <code>stats-data.json</code>. En producción, cada resultado de <code>PoseLandmarker</code> puede convertirse en un evento de sesión:</p>
-          <pre>recordPostureEvent({ timestamp, durationMs, issueKey, score })</pre>
-          <p>Agrupa los eventos por día y bloque de enfoque; conserva solo agregados locales. El vídeo y los landmarks no tienen que salir del navegador.</p>
+          <p>Las estadísticas se guardan de forma privada en tu cuenta cuando completas un bloque de enfoque. Solo se envían agregados de duración y postura; el vídeo y los puntos de referencia permanecen en tu dispositivo.</p>
         </div>
       </details>
     </main>
-    <footer class="footer"><p>Datos de ejemplo para explorar tu semana. No son una evaluación médica.</p></footer>
+    <footer class="footer"><p>Estadísticas privadas de tus sesiones. No son una evaluación médica.</p></footer>
   </div>
   <script type="module" src="/theme.js"></script>
   <script type="module" src="/stats.js"></script>

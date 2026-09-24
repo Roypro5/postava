@@ -25,7 +25,8 @@ test("server mounts proxy before parsers and protects account API", async () => 
   assert.match(server, /authenticatedPresence\(req\)/);
   assert.match(server, /status\(401\)\.json\(\{ error: "SESSION_REQUIRED" \}\)/);
   assert.match(server, /res\.redirect\(302, "\/sign-in\?redirect=\/stats"\)/);
-  assert.match(server, /app\.get\("\/stats-data\.json"/);
+  assert.match(server, /app\.get\("\/api\/stats", statsHandlers\.get\)/);
+  assert.doesNotMatch(server, /app\.get\("\/stats-data\.json"/);
   assert.doesNotMatch(server, /express\.static/);
   assert.match(server, /assets\/auth-adapter\.bundle\.js/);
   assert.doesNotMatch(server, /vite\.middlewares/);
