@@ -69,6 +69,17 @@ test("metricReport/findIssues: detecta cuello hundido respecto a la calibración
   assert.ok(issues.some((i) => i.key === "neckDrop"));
 });
 
+test("computeMetrics: devuelve null si faltan landmarks o si no son finitos", () => {
+  assert.equal(computeMetrics(null), null);
+
+  const lmMissing = makeLandmarks();
+  lmMissing[KEY_POINTS[0]] = null;
+  assert.equal(computeMetrics(lmMissing), null);
+
+  const lmNaN = makeLandmarks({ 11: { x: NaN, y: 0.5, visibility: 1 } });
+  assert.equal(computeMetrics(lmNaN), null);
+});
+
 test("metricReport: sin baseline o sin métricas devuelve lista vacía", () => {
   assert.deepEqual(metricReport(null, null), []);
   const m = computeMetrics(makeLandmarks());

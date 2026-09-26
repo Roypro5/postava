@@ -90,8 +90,19 @@ export function lineAngleDifference(a, b) {
  * La X se corrige por la relación de aspecto para que las distancias sean
  * comparables en ambos ejes; después casi todo se normaliza por el ancho de
  * hombros, de modo que las métricas no dependen de la distancia a la cámara.
+ *
+ * Devuelve `null` si `lm` falta o si alguno de los puntos clave usados
+ * (los mismos que exige `keyPointsVisible`) no está definido o tiene x/y no
+ * finitos. Los llamadores deben comprobar `keyPointsVisible(lm)` antes de
+ * invocar esta función; con esa comprobación previa, este caso nunca ocurre
+ * en la práctica, pero queda como red de seguridad para nuevos llamadores.
  */
 export function computeMetrics(lm, aspect = 4 / 3) {
+  if (!lm) return null;
+  for (const i of KEY_POINTS) {
+    const p = lm[i];
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+  }
   const P = (i) => ({ x: lm[i].x * aspect, y: lm[i].y });
   const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);

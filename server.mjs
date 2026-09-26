@@ -17,6 +17,8 @@ import {
   requestHasPublicOrigin,
 } from "./server/session-cookie.mjs";
 import { createStatsHandlers, statsStore } from "./server/stats-store.mjs";
+import { securityHeaders } from "./server/security-headers.mjs";
+import { createRateLimiter } from "./server/rate-limit.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.argv[2]) || Number(process.env.PORT) || 5000;
@@ -107,6 +109,8 @@ export function createApp() {
   app.set("trust proxy", trustProxyHops());
   app.disable("x-powered-by");
 
+  app.use(securityHeaders());
+
   // This raw streaming proxy must be mounted before all body parsers.
   app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
   // Browser auth endpoints are same-origin only; do not reflect arbitrary CORS origins.
@@ -125,6 +129,24 @@ export function createApp() {
   app.use("/api/auth", noStore);
   app.use("/api/account", noStore);
   app.use("/api/stats", noStore);
+
+  // Keyed by the verified Clerk user when available (so one account can't be
+  // starved by another sharing a NAT/proxy IP), falling back to the request
+  // IP for anonymous callers. Each createApp() call gets its own limiter
+  // instances, so tests never leak rate-limit state between apps.
+  const rateLimitKey = (req) => realClerkSession(req)?.userId || req.ip;
+  const authSessionLimiter = createRateLimiter({
+    windowMs: 60_000,
+    max: 30,
+    keyFn: rateLimitKey,
+  });
+  const statsSessionLimiter = createRateLimiter({
+    windowMs: 60_000,
+    max: 30,
+    keyFn: rateLimitKey,
+  });
+  authSessionLimiter.startCleanup();
+  statsSessionLimiter.startCleanup();
 
   app.get("/api/auth/config", (req, res) => {
     res.json({
@@ -153,7 +175,7 @@ export function createApp() {
     }
   });
 
-  app.post("/api/auth/session", (req, res) => {
+  app.post("/api/auth/session", authSessionLimiter.middleware, (req, res) => {
     if (!requestHasPublicOrigin(req)) {
       return res.status(403).json({ error: "UNSAFE_ORIGIN" });
     }
@@ -197,14 +219,13 @@ export function createApp() {
     requestHasPublicOrigin,
   });
   app.get("/api/stats", statsHandlers.get);
-  app.post("/api/stats/sessions", statsHandlers.post);
+  app.post("/api/stats/sessions", statsSessionLimiter.middleware, statsHandlers.post);
 
   const publicFiles = new Map([
     ["/index.html", "index.html"],
     ["/stats.css", "stats.css"],
     ["/stats.js", "stats.js"],
     ["/stats-session.js", "stats-session.js"],
-    ["/login.html", "login.html"],
     ["/app.js", "app.js"],
     ["/styles.css", "styles.css"],
     ["/theme.js", "theme.js"],

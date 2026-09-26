@@ -1341,7 +1341,6 @@ document.querySelectorAll(".chip").forEach((chip) => {
   chip.addEventListener("click", () => {
     el.focusMins.value = chip.dataset.minutes;
     el.focusMins.dispatchEvent(new Event("change"));
-    syncChips();
   });
 });
 

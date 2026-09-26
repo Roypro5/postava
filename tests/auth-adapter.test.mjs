@@ -140,6 +140,12 @@ test("logout uses Clerk SDK before clearing app marker", async () => {
   assert.equal(calls[0][0], "signout");
   assert.equal(calls[1][2].method, "DELETE");
 });
+test("logout completes even when clearing the presence cookie fails over the network", async () => {
+  const { clerk, calls } = setup();
+  const request = async () => { throw new Error("network down"); };
+  await assert.doesNotReject(createAuthAdapter(clerk, request).signOut());
+  assert.ok(calls.some(c => c[0] === "signout"));
+});
 test("provider errors are mapped without reflecting arbitrary provider messages", () => {
   assert.match(authError({ errors: [{ code: "form_code_incorrect" }] }), /código no es válido/);
   const shortPassword = authError({ errors: [{ code: "form_password_length_too_short" }] });

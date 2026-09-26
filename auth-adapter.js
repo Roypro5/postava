@@ -132,7 +132,15 @@ export function createAuthAdapter(clerk, request = fetch) {
     },
     async signOut() {
       await clerk.signOut();
-      await sessionRequest("DELETE");
+      try {
+        await sessionRequest("DELETE");
+      } catch (error) {
+        // Clerk ya cerró la sesión: es la autoridad real. Una cookie de
+        // presencia residual no da acceso porque las rutas privadas exigen
+        // Clerk + cookie, así que no interrumpimos el logout visible por un
+        // fallo de red al borrarla.
+        console.warn("No se pudo borrar la cookie de presencia:", error);
+      }
     },
   };
 }
