@@ -92,9 +92,19 @@ function sendAuthenticatedPresence(req, res) {
   }
 }
 
+export function trustProxyHops() {
+  const raw = process.env.TRUST_PROXY_HOPS;
+  if (raw === undefined || raw.trim() === "") return 1;
+  const hops = Number(raw);
+  return Number.isInteger(hops) && hops >= 0 ? hops : 1;
+}
+
 export function createApp() {
   const app = express();
-  app.set("trust proxy", true);
+  // Trust only the configured number of reverse-proxy hops (Replit puts one
+  // in front by default) instead of blindly trusting every hop, so that
+  // X-Forwarded-Host/-Proto/-For can't be spoofed by the client past that.
+  app.set("trust proxy", trustProxyHops());
   app.disable("x-powered-by");
 
   // This raw streaming proxy must be mounted before all body parsers.
@@ -234,7 +244,20 @@ export function createApp() {
   });
   app.use((_req, res) => res.status(404).type("text").send("404"));
 
+  app.use(handleUnexpectedError);
+
   return app;
+}
+
+// Express identifies error-handling middleware by its arity (4 args), so
+// `next` must stay in the signature even though it's only used when the
+// response has already started streaming.
+export function handleUnexpectedError(err, _req, res, next) {
+  console.error(err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  return res.status(500).json({ error: "INTERNAL_ERROR" });
 }
 
 const isMain =

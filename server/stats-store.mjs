@@ -7,14 +7,6 @@ const ISSUE_META = {
   tilt: { label: "Desnivel de hombros", color: "#709b83" },
   distance: { label: "Distancia inadecuada", color: "#6f8997" },
 };
-const FATIGUE_BUCKETS = [
-  { label: "08–10", start: 8 },
-  { label: "10–12", start: 10 },
-  { label: "12–14", start: 12 },
-  { label: "14–16", start: 14 },
-  { label: "16–18", start: 16 },
-  { label: "18–20", start: 18 },
-];
 const SESSION_KEYS = new Set([
   "id",
   "expectedUserId",
@@ -125,12 +117,6 @@ function dayLabel(date) {
 export function buildStats(rows) {
   const daysByDate = new Map();
   const issueMilliseconds = Object.fromEntries(ISSUE_KEYS.map((key) => [key, 0]));
-  const fatigueByStart = new Map(
-    FATIGUE_BUCKETS.map((bucket) => [
-      bucket.start,
-      { bucket, goodMs: 0, badMs: 0, sessions: 0 },
-    ]),
-  );
 
   for (const row of rows) {
     const startedAt = new Date(row.started_at);
@@ -161,21 +147,14 @@ export function buildStats(rows) {
     day.correctMs += goodMs;
     day.measuredMs += goodMs + badMs;
     day.sessions.push({
-      start: startedAt.toISOString().slice(11, 16),
+      // Instante completo en ISO/UTC: el cliente lo formatea en hora local
+      // (agrupar por día sigue siendo en UTC, ver replit.md).
+      startedAt: startedAt.toISOString(),
       minutes: durationMinutes,
       score: score(goodMs, badMs),
+      goodMs,
+      badMs,
     });
-
-    const hour = startedAt.getUTCHours();
-    const bucketStart = FATIGUE_BUCKETS.find(
-      (bucket) => hour >= bucket.start && hour < bucket.start + 2,
-    )?.start;
-    if (bucketStart !== undefined) {
-      const bucket = fatigueByStart.get(bucketStart);
-      bucket.goodMs += goodMs;
-      bucket.badMs += badMs;
-      bucket.sessions += 1;
-    }
 
     const issueValues = Object.fromEntries(
       ISSUE_KEYS.map((key) => [key, Number(issues?.[key] ?? 0)]),
@@ -215,20 +194,7 @@ export function buildStats(rows) {
     color: ISSUE_META[key].color,
   })).filter((habit) => habit.minutes > 0);
 
-  const fatigue = FATIGUE_BUCKETS.flatMap(({ label, start }) => {
-    const bucket = fatigueByStart.get(start);
-    if (!bucket.sessions || bucket.goodMs + bucket.badMs === 0) return [];
-    return [
-      {
-        label,
-        value: Math.round(
-          (bucket.badMs / (bucket.goodMs + bucket.badMs)) * 100,
-        ),
-      },
-    ];
-  });
-
-  return { days, habitDistribution, fatigue };
+  return { days, habitDistribution };
 }
 
 export function createStatsStore(pool) {

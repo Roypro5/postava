@@ -100,6 +100,12 @@ leen tanto las alertas (`findIssues`) como el panel en vivo.
 
 Atajos: <kbd>Espacio</kbd> iniciar/pausar · <kbd>C</kbd> calibrar.
 
+> **El temporizador no persiste al recargar.** Es intencional: recargar o
+> cerrar la pestaña reinicia el Pomodoro a su estado inicial y descarta el
+> bloque de enfoque en curso (fase, tiempo restante y minutos acumulados) sin
+> guardarlo en las estadísticas. Solo se guardan en `localStorage` los ajustes
+> y la calibración (`saveSettings()` en `app.js`).
+
 ## Depuración
 
 Abre `?debug=1` para exponer `window.postavaDebug` y simular posturas sin cámara,

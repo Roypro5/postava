@@ -20,7 +20,7 @@ import {
   metricReport,
   averageMetrics,
 } from "./posture.js";
-import { bindFocusAccount, completedFocusPayload } from "./stats-session.js";
+import { bindFocusAccount, completedFocusPayload, classifyStatsSendError } from "./stats-session.js";
 
 import { loadAuth } from "/assets/auth-adapter.bundle.js";
 
@@ -221,7 +221,19 @@ async function sendStatsSession(session) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(session),
   });
-  if (!response.ok) throw new Error(response.status === 401 ? "La sesión de tu cuenta ha caducado." : "No se pudo guardar la sesión.");
+  if (!response.ok) {
+    const message =
+      response.status === 401
+        ? "La sesión de tu cuenta ha caducado."
+        : response.status === 400
+          ? "La sesión guardada no es válida."
+          : response.status === 409
+            ? "Esta sesión pertenece a otra cuenta."
+            : "No se pudo guardar la sesión.";
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
 }
 
 async function retryStatsSaves() {
@@ -243,7 +255,17 @@ async function retryStatsSaves() {
         throw new Error("La cuenta cambió. Inicia sesión con la cuenta original para reintentar.");
       }
       const session = queue[0];
-      await sendStatsSession(session);
+      try {
+        await sendStatsSession(session);
+      } catch (error) {
+        if (classifyStatsSendError(error.status) === "discard") {
+          console.warn(`Descartando sesión de estadísticas no reintentable (${error.status}): ${session.id}`);
+          queue.shift();
+          persistPendingStats(drainingAccountId, queue);
+          continue;
+        }
+        throw error;
+      }
       queue.shift();
       persistPendingStats(drainingAccountId, queue);
     }
@@ -432,12 +454,31 @@ async function startCamera() {
     return false;
   }
 
+  const track = stream.getVideoTracks()[0];
+  if (track) {
+    track.addEventListener("ended", () => {
+      if (!camOn) return;
+      stopCamera();
+      setMessage("La cámara se desconectó o perdió el permiso. Vuelve a encenderla.");
+    });
+  }
+
   el.video.srcObject = stream;
   await el.video.play().catch(() => {});
-  await new Promise((resolve) => {
-    if (el.video.videoWidth) return resolve();
-    el.video.onloadedmetadata = () => resolve();
-  });
+  try {
+    await new Promise((resolve, reject) => {
+      if (el.video.videoWidth) return resolve();
+      const timeoutId = setTimeout(() => reject(new Error("timeout")), 5000);
+      el.video.onloadedmetadata = () => {
+        clearTimeout(timeoutId);
+        resolve();
+      };
+    });
+  } catch {
+    stopCamera();
+    setMessage("La cámara tardó demasiado en responder. Inténtalo de nuevo.");
+    return false;
+  }
 
   el.overlay.width = el.video.videoWidth || 640;
   el.overlay.height = el.video.videoHeight || 480;
@@ -517,6 +558,7 @@ function videoAspect() {
 
 /* ── Calibración ──────────────────────────────────────────────────────── */
 function startCalibration() {
+  if (!engineReady || posture.calibrating) return;
   if (!camOn) {
     startCamera().then((ok) => ok && startCalibration());
     return;
@@ -1233,7 +1275,7 @@ function completePhase({ skipped = false } = {}) {
 
   if (timer.phase === "focus") {
     stopFocusStats();
-    timer.completed += 1;
+    if (!skipped) timer.completed += 1;
     if (!skipped && focusStats.elapsedMs > 0) recordCompletedFocus();
     resetFocusStats();
     setPhase("break", true);

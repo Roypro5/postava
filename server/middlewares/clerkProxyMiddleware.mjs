@@ -7,11 +7,24 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
+function trustsForwardedHost(req) {
+  // Mirrors how Express itself decides whether to honor X-Forwarded-* headers
+  // (req.hostname, req.protocol, req.ip), based on the app's "trust proxy"
+  // setting, instead of trusting X-Forwarded-Host unconditionally.
+  const trustFn = req.app?.get?.("trust proxy fn");
+  if (typeof trustFn !== "function") return false;
+  const remoteAddress = req.socket?.remoteAddress ?? req.connection?.remoteAddress;
+  return trustFn(remoteAddress, 0);
+}
+
 export function getClerkProxyHost(req) {
-  const forwarded = req.headers["x-forwarded-host"];
-  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  const firstHop = raw?.split(",")[0]?.trim();
-  return firstHop || req.headers.host?.trim() || undefined;
+  if (trustsForwardedHost(req)) {
+    const forwarded = req.headers["x-forwarded-host"];
+    const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    const firstHop = raw?.split(",")[0]?.trim();
+    if (firstHop) return firstHop;
+  }
+  return req.headers.host?.trim() || undefined;
 }
 
 export function clerkProxyMiddleware() {

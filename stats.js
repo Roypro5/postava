@@ -11,6 +11,17 @@ const issueLabels = {
   tilt: "Inclinación",
   distance: "Distancia",
 };
+// Franjas horarias en hora LOCAL del navegador (el servidor solo agrupa los
+// días por fecha UTC, ver replit.md; la fatiga se calcula aquí porque necesita
+// la hora local real de cada sesión).
+const FATIGUE_BUCKETS = [
+  { label: "08–10", start: 8 },
+  { label: "10–12", start: 10 },
+  { label: "12–14", start: 12 },
+  { label: "14–16", start: 14 },
+  { label: "16–18", start: 16 },
+  { label: "18–20", start: 18 },
+];
 
 function redirectToSignIn(reason = "") {
   const suffix = reason ? `&reason=${encodeURIComponent(reason)}` : "";
@@ -83,7 +94,6 @@ async function loadStats() {
     state.data = {
       days: Array.isArray(data.days) ? data.days : [],
       habitDistribution: Array.isArray(data.habitDistribution) ? data.habitDistribution : [],
-      fatigue: Array.isArray(data.fatigue) ? data.fatigue : [],
     };
     state.days = state.data.days;
     $("stats-load-state").hidden = true;
@@ -113,6 +123,40 @@ function number(value) {
 
 function total(key) {
   return activeDays().reduce((sum, day) => sum + number(day[key]), 0);
+}
+
+function localSessionTime(session) {
+  if (typeof session.startedAt === "string") {
+    const date = new Date(session.startedAt);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    }
+  }
+  // Compatibilidad con respuestas antiguas que ya traían la hora formateada.
+  return session.start || "—";
+}
+
+function computeFatigue(days) {
+  const byStart = new Map(FATIGUE_BUCKETS.map((bucket) => [bucket.start, { goodMs: 0, badMs: 0, sessions: 0 }]));
+  days.forEach((day) => {
+    (Array.isArray(day.sessions) ? day.sessions : []).forEach((session) => {
+      if (typeof session.startedAt !== "string") return;
+      const date = new Date(session.startedAt);
+      if (Number.isNaN(date.getTime())) return;
+      const hour = date.getHours();
+      const bucketStart = FATIGUE_BUCKETS.find((bucket) => hour >= bucket.start && hour < bucket.start + 2)?.start;
+      if (bucketStart === undefined) return;
+      const bucket = byStart.get(bucketStart);
+      bucket.goodMs += number(session.goodMs);
+      bucket.badMs += number(session.badMs);
+      bucket.sessions += 1;
+    });
+  });
+  return FATIGUE_BUCKETS.flatMap(({ label, start }) => {
+    const bucket = byStart.get(start);
+    if (!bucket.sessions || bucket.goodMs + bucket.badMs === 0) return [];
+    return [{ label, value: Math.round((bucket.badMs / (bucket.goodMs + bucket.badMs)) * 100) }];
+  });
 }
 
 function formatMinutes(minutes) {
@@ -151,7 +195,7 @@ function render() {
   $("focusTime").textContent = formatMinutes(focus);
   $("correctTime").textContent = formatMinutes(correct);
   $("pomodoros").textContent = pomodoros;
-  $("sessionAvg").textContent = (pomodoros / Math.max(days.length, 1)).toLocaleString("es-ES", { maximumFractionDigits: 1 });
+  $("sessionAvg").textContent = (pomodoros / Math.max(state.period, 1)).toLocaleString("es-ES", { maximumFractionDigits: 1 });
   $("sessionCount").textContent = pomodoros;
   $("distributionTotal").textContent = formatMinutes(measured);
 
@@ -160,7 +204,7 @@ function render() {
   renderSessions(days);
   renderDistribution(measured, correct);
   renderHabits(state.data?.habitDistribution || []);
-  renderFatigue(state.data?.fatigue || []);
+  renderFatigue(computeFatigue(days));
 }
 
 function renderHistogram(days) {
@@ -208,7 +252,7 @@ function renderSessions(days) {
     const state = make("i", `session-state${score === null || score < 85 ? " normal" : ""}`);
     state.setAttribute("aria-hidden", "true");
     const description = make("span");
-    description.append(make("strong", "session-time", session.start || "—"));
+    description.append(make("strong", "session-time", localSessionTime(session)));
     description.append(make("span", "session-date", session.label));
     row.append(state, description, make("span", "session-duration", `${number(session.minutes)} min`), make("strong", "session-score", score === null ? "—" : `${score}`));
     container.append(row);

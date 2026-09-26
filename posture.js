@@ -58,7 +58,8 @@ export function keyPointsVisible(lm, minVisibility = 0.4) {
   for (const i of KEY_POINTS) {
     const p = lm[i];
     if (!p) return false;
-    if (typeof p.visibility === "number") {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+    if (Number.isFinite(p.visibility)) {
       if (p.visibility > 0) hasVisibilityData = true;
       min = Math.min(min, p.visibility);
     }
