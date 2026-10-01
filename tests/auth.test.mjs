@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+// Hoy este test solo lee server.mjs como texto, pero si algún día lo importa el SDK de Clerk
+// enviaría telemetría con claves pk_test: en tests no debe salir nada a la red.
+process.env.CLERK_TELEMETRY_DISABLED ??= "1";
+
+const read =(path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("uses canonical Clerk host key and unconditional production proxy wiring", async () => {
   const [client, server] = await Promise.all([read("auth-adapter.js"), read("server.mjs")]);
@@ -19,13 +23,18 @@ test("server mounts proxy before parsers and protects account API", async () => 
   const server = await read("server.mjs");
   const proxy = server.indexOf("app.use(CLERK_PROXY_PATH, clerkProxyMiddleware())");
   const parser = server.indexOf("app.use(express.json(");
-  const auth = server.indexOf("clerkMiddleware((req)");
+  // Clerk ya no es global (responde 307 de handshake a toda navegación con claves de desarrollo, la
+  // página principal incluida): se crea una sola vez y se monta ruta a ruta, siempre detrás del proxy y del parser.
+  const auth = server.indexOf("const withClerk = clerkAuthentication()");
   assert.ok(proxy >= 0 && proxy < parser && parser < auth);
+  assert.doesNotMatch(server, /app\.use\([^)]*(?:clerkAuthentication|withClerk)/, "Clerk no debe montarse con app.use()");
+  assert.match(server, /app\.get\("\/api\/account", withClerkForApi, /);
+  assert.match(server, /app\.get\(\["\/stats", "\/stats\.html"\], withClerk, privatePage,/);
   assert.match(server, /app\.get\("\/api\/account"/);
   assert.match(server, /authenticatedPresence\(req\)/);
   assert.match(server, /status\(401\)\.json\(\{ error: "SESSION_REQUIRED" \}\)/);
   assert.match(server, /res\.redirect\(302, "\/sign-in\?redirect=\/stats"\)/);
-  assert.match(server, /app\.get\("\/api\/stats", statsHandlers\.get\)/);
+  assert.match(server, /app\.get\("\/api\/stats", withClerkForApi, limiters\.statsRead\.middleware, statsHandlers\.get\)/);
   assert.doesNotMatch(server, /app\.get\("\/stats-data\.json"/);
   assert.doesNotMatch(server, /express\.static/);
   assert.match(server, /assets\/auth-adapter\.bundle\.js/);

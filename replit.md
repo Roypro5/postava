@@ -20,7 +20,7 @@ Server startup builds the browser adapter with esbuild. Run `npm install` after 
 
 Configuration is automatically provisioned with Clerk. `SESSION_SECRET` signs the presence cookie; keep it stable across server restarts. The canonical proxy is mounted before body parsing for published custom domains. Frontend requests are same-origin and cookie-based, never explicit bearer tokens.
 
-`/sign-in`, `/sign-up`, and `/login` remain entry routes. `GET /api/account` remains protected by Clerk plus the presence cookie. The earlier React island source is retained in `client/` but is not mounted or served; there must be only one active auth client.
+`/sign-in`, `/sign-up`, and `/login` remain entry routes. `GET /api/account` remains protected by Clerk plus the presence cookie. The earlier React island prototype has been removed; there must be only one active auth client.
 
 ## Authentication test limits
 

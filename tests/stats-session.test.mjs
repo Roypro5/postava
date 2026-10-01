@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bindFocusAccount, completedFocusPayload } from "../stats-session.js";
+import { bindFocusAccount, completedFocusPayload, classifyStatsSendError } from "../stats-session.js";
 import { createStatsHandlers } from "../server/stats-store.mjs";
 
 function focus() {
@@ -52,4 +52,12 @@ test("an in-flight retry cannot write an old account's block to the new account"
   await handlers.post({ body: payload }, res);
   assert.equal(res.statusCode, 409);
   assert.equal(stored, false);
+});
+
+test("classifyStatsSendError discards non-retryable statuses and retries the rest", () => {
+  assert.equal(classifyStatsSendError(400), "discard");
+  assert.equal(classifyStatsSendError(409), "discard");
+  assert.equal(classifyStatsSendError(401), "retry");
+  assert.equal(classifyStatsSendError(500), "retry");
+  assert.equal(classifyStatsSendError(undefined), "retry");
 });

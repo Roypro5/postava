@@ -83,6 +83,40 @@ test("incorrect recovery code never changes password or establishes session", as
   await assert.rejects(adapter.reset("bad-code", "new-passphrase", true), /invalid code/);
   assert.equal(calls.length, 0);
 });
+test("recovery of a nonexistent account is indistinguishable from a real account with a wrong code", async () => {
+  const unknownError = new Error("not found");
+  unknownError.errors = [{ code: "form_identifier_not_found" }];
+  const { clerk: unknownClerk, request: unknownRequest } = setup();
+  unknownClerk.client.signIn.create = async () => { throw unknownError; };
+  const unknownAdapter = createAuthAdapter(unknownClerk, unknownRequest);
+  assert.deepEqual(await unknownAdapter.recover("unknown@example.com"), { step: "reset-code" });
+  const unknownStart = Date.now();
+  let unknownMessage;
+  await assert.rejects(unknownAdapter.reset("000000", "new-passphrase", false), error => {
+    unknownMessage = authError(error);
+    return true;
+  });
+  assert.ok(Date.now() - unknownStart >= 250, "masked reset should not resolve instantly");
+  await assert.doesNotReject(unknownAdapter.resend("reset-code"));
+
+  const { clerk: realClerk, request: realRequest } = setup();
+  realClerk.client.signIn.create = async () => realClerk.client.signIn;
+  realClerk.client.signIn.attemptFirstFactor = async () => {
+    const error = new Error("wrong code");
+    error.errors = [{ code: "form_code_incorrect" }];
+    throw error;
+  };
+  const realAdapter = createAuthAdapter(realClerk, realRequest);
+  await realAdapter.recover("real@example.com");
+  let realMessage;
+  await assert.rejects(realAdapter.reset("000000", "new-passphrase", false), error => {
+    realMessage = authError(error);
+    return true;
+  });
+
+  assert.equal(unknownMessage, realMessage);
+  assert.equal(unknownMessage, "El código no es válido. Revísalo e inténtalo de nuevo.");
+});
 test("registration awaits email verification before setting session with remember choice", async () => {
   const { clerk, calls, request } = setup();
   const signup = {
@@ -105,6 +139,12 @@ test("logout uses Clerk SDK before clearing app marker", async () => {
   await createAuthAdapter(clerk, request).signOut();
   assert.equal(calls[0][0], "signout");
   assert.equal(calls[1][2].method, "DELETE");
+});
+test("logout completes even when clearing the presence cookie fails over the network", async () => {
+  const { clerk, calls } = setup();
+  const request = async () => { throw new Error("network down"); };
+  await assert.doesNotReject(createAuthAdapter(clerk, request).signOut());
+  assert.ok(calls.some(c => c[0] === "signout"));
 });
 test("provider errors are mapped without reflecting arbitrary provider messages", () => {
   assert.match(authError({ errors: [{ code: "form_code_incorrect" }] }), /código no es válido/);

@@ -8,18 +8,8 @@
   <meta name="color-scheme" content="light dark" />
   <link rel="icon" href="/logo.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
-  <script>
-    /* Resuelve el tema antes del primer pintado para que no parpadee.
-       La preferencia guardada puede ser "light", "dark" o "auto". */
-    (() => {
-      let pref = "auto";
-      try { pref = localStorage.getItem("postava.theme") || "auto"; } catch {}
-      const dark = pref === "dark" ||
-        (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-      document.documentElement.dataset.theme = dark ? "dark" : "light";
-      document.documentElement.dataset.themePref = pref;
-    })();
-  </script>
+  <!-- Tema antes del primer pintado: síncrono a propósito (sin defer/async/module). -->
+  <script src="/theme-init.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -81,11 +71,13 @@
       </div>
     </header>
 
-    <main id="main" class="layout">
+    <main id="main" class="layout" tabindex="-1">
+      <h1 class="sr-only">Postava: Pomodoro con corrección de postura</h1>
 
       <!-- ───────────────────────── Sesión ───────────────────────── -->
       <div class="col col-session">
-        <article class="card card-timer">
+        <section class="card card-timer" aria-labelledby="timerTitle">
+          <h2 class="sr-only" id="timerTitle">Temporizador</h2>
           <header class="card-head">
             <p class="eyebrow" id="phaseLabel">Enfoque</p>
             <span class="tag" id="cycleLabel">Sesión 1</span>
@@ -97,30 +89,30 @@
               <circle id="ringProgress" class="ring-value" cx="140" cy="140" r="120" />
             </svg>
             <div class="dial-center">
-              <div id="timerDisplay" class="dial-time" role="timer" aria-live="off">25:00</div>
-              <div id="timerHint" class="dial-hint">listo para empezar</div>
+              <div id="timerDisplay" class="dial-time" role="timer" aria-live="off" aria-label="Tiempo restante">25:00</div>
+              <div id="timerHint" class="dial-hint" role="status" aria-live="polite" aria-atomic="true">listo para empezar</div>
             </div>
           </div>
 
           <div class="presets" role="group" aria-label="Duraciones rápidas">
-            <button class="chip" data-minutes="25">25<span class="unit">min</span></button>
-            <button class="chip" data-minutes="50">50<span class="unit">min</span></button>
-            <button class="chip" data-minutes="60">60<span class="unit">min</span></button>
-            <button class="chip" data-minutes="90">90<span class="unit">min</span></button>
+            <button class="chip" data-minutes="25" aria-label="25 minutos">25<span class="unit">min</span></button>
+            <button class="chip" data-minutes="50" aria-label="50 minutos">50<span class="unit">min</span></button>
+            <button class="chip" data-minutes="60" aria-label="60 minutos">60<span class="unit">min</span></button>
+            <button class="chip" data-minutes="90" aria-label="90 minutos">90<span class="unit">min</span></button>
           </div>
 
           <div class="field-row">
             <label class="field">
               <span class="field-label">Enfoque</span>
               <span class="field-input">
-                <input id="focusMins" type="number" min="1" max="180" step="1" value="25" />
+                <input id="focusMins" type="number" inputmode="numeric" min="1" max="180" step="1" value="25" />
                 <span class="field-unit">min</span>
               </span>
             </label>
             <label class="field">
               <span class="field-label">Descanso</span>
               <span class="field-input">
-                <input id="breakMins" type="number" min="1" max="60" step="1" value="5" />
+                <input id="breakMins" type="number" inputmode="numeric" min="1" max="60" step="1" value="5" />
                 <span class="field-unit">min</span>
               </span>
             </label>
@@ -137,48 +129,50 @@
             <span class="sep" aria-hidden="true">·</span>
             <kbd>C</kbd> calibrar
           </p>
-        </article>
+        </section>
 
-        <article class="card card-steps">
-          <p class="eyebrow">Cómo empezar</p>
-          <ol class="steps">
+        <section class="card card-steps" aria-labelledby="stepsTitle">
+          <h2 class="eyebrow" id="stepsTitle">Cómo empezar</h2>
+          <ol class="steps" role="list">
             <li class="step">
-              <span class="step-num">1</span>
+              <span class="step-num" aria-hidden="true">1</span>
               <span class="step-body">
                 <strong>Enciende la cámara</strong>
                 <span>Se activa sola al iniciar el temporizador. El vídeo no sale de tu equipo.</span>
               </span>
             </li>
             <li class="step">
-              <span class="step-num">2</span>
+              <span class="step-num" aria-hidden="true">2</span>
               <span class="step-body">
                 <strong>Calibra tu postura</strong>
                 <span>Siéntate como quieres estar durante la sesión y pulsa «Calibrar». Esa será tu referencia.</span>
               </span>
             </li>
             <li class="step">
-              <span class="step-num">3</span>
+              <span class="step-num" aria-hidden="true">3</span>
               <span class="step-body">
                 <strong>Trabaja tranquilo</strong>
                 <span>Solo te aviso si te desvías de forma continuada; un desliz de un segundo no cuenta.</span>
               </span>
             </li>
           </ol>
-        </article>
+        </section>
       </div>
 
       <!-- ───────────────────────── Sensor ───────────────────────── -->
       <div class="col col-sensor">
 
-        <article class="card card-posture">
+        <section class="card card-posture" aria-labelledby="postureTitle">
           <header class="card-head">
-            <p class="eyebrow">Postura</p>
+            <h2 class="eyebrow" id="postureTitle">Postura</h2>
+            <!-- La insignia NO es región live: con la detección parpadeando alterna "No te veo" / "Postura correcta" a ritmo de fotograma y saturaría al lector de pantalla. Los cambios importantes se anuncian por #postureMsg y #alertLive -->
             <span id="postureBadge" class="badge badge-idle">Sin monitorizar</span>
           </header>
 
           <div id="stage" class="stage" data-hide-video="false">
-            <video id="video" playsinline autoplay muted></video>
-            <canvas id="overlay"></canvas>
+            <!-- Imagen y esqueleto son solo visuales: el estado se comunica por texto (insignia y mensaje) -->
+            <video id="video" playsinline autoplay muted aria-hidden="true"></video>
+            <canvas id="overlay" aria-hidden="true"></canvas>
 
             <div id="camPlaceholder" class="placeholder">
               <span class="placeholder-icon" aria-hidden="true">
@@ -207,13 +201,13 @@
             <div id="holdFill" class="hold-fill"></div>
           </div>
 
-          <p id="postureMsg" class="posture-msg">Calibra tu postura para empezar a monitorizar.</p>
+          <p id="postureMsg" class="posture-msg" role="status" aria-live="polite" aria-atomic="true">Calibra tu postura para empezar a monitorizar.</p>
 
           <div class="actions">
             <button id="btnCalibrate" class="btn btn-primary btn-wide">Calibrar postura</button>
             <button id="btnCamera" class="btn">Encender cámara</button>
           </div>
-        </article>
+        </section>
 
         <details class="card card-settings settings">
           <summary>
@@ -224,56 +218,66 @@
           <div class="settings-body">
             <label class="range">
               <span class="range-head">
-                <span class="field-label">Tolerancia</span>
+                <span class="field-label" id="tolLabel">Tolerancia</span>
                 <b id="tolValue">normal</b>
               </span>
-              <input id="tolerance" type="range" min="0.6" max="1.8" step="0.1" value="1" />
+              <input id="tolerance" type="range" min="0.6" max="1.8" step="0.1" value="1"
+                     aria-labelledby="tolLabel" aria-valuetext="normal" />
             </label>
 
             <label class="range">
               <span class="range-head">
-                <span class="field-label">Margen antes del aviso</span>
+                <span class="field-label" id="delayLabel">Margen antes del aviso</span>
                 <b id="delayValue">5 s</b>
               </span>
-              <input id="delaySeconds" type="range" min="2" max="30" step="1" value="5" />
+              <input id="delaySeconds" type="range" min="2" max="30" step="1" value="5"
+                     aria-labelledby="delayLabel" aria-valuetext="5 s" />
             </label>
 
             <div class="switches">
               <label class="switch">
-                <input id="soundToggle" type="checkbox" checked />
+                <input id="soundToggle" type="checkbox" role="switch" checked />
                 <span class="switch-track" aria-hidden="true"></span>
                 <span class="switch-text">Sonido de alerta</span>
               </label>
 
               <label class="switch">
-                <input id="skeletonToggle" type="checkbox" checked />
+                <input id="skeletonToggle" type="checkbox" role="switch" checked />
                 <span class="switch-track" aria-hidden="true"></span>
                 <span class="switch-text">Puntos y esqueleto</span>
               </label>
 
               <label class="switch">
-                <input id="hudToggle" type="checkbox" checked />
+                <input id="hudToggle" type="checkbox" role="switch" checked />
                 <span class="switch-track" aria-hidden="true"></span>
                 <span class="switch-text">Panel de métricas en vivo</span>
               </label>
 
               <label class="switch">
-                <input id="hideVideoToggle" type="checkbox" />
+                <input id="hideVideoToggle" type="checkbox" role="switch" />
                 <span class="switch-track" aria-hidden="true"></span>
                 <span class="switch-text">Modo mapa: ocultar la imagen</span>
               </label>
 
               <label class="switch">
-                <input id="camOnlyRunning" type="checkbox" checked />
+                <input id="camOnlyRunning" type="checkbox" role="switch" checked />
                 <span class="switch-track" aria-hidden="true"></span>
                 <span class="switch-text">Apagar la cámara al pausar</span>
               </label>
+
+              <label class="switch">
+                <input id="notifyToggle" type="checkbox" role="switch" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">Notificaciones del sistema</span>
+              </label>
+              <p id="notifyStatus" class="field-label" role="status" aria-live="polite" aria-atomic="true"></p>
             </div>
           </div>
         </details>
       </div>
 
       <!-- ───────────────────────── Estadísticas ───────────────────────── -->
+      <h2 class="sr-only">Resumen de la sesión</h2>
       <dl class="stats">
         <div class="stat">
           <dt>Postura correcta</dt>
@@ -291,12 +295,16 @@
     </main>
 
     <footer class="footer">
-      <p id="engineStatus" class="engine">Cargando modelo de visión…</p>
+      <p id="engineStatus" class="engine" role="status" aria-live="polite" aria-atomic="true">Cargando modelo de visión…</p>
       <p class="privacy">El vídeo nunca sale de tu dispositivo: el modelo se ejecuta en tu navegador.</p>
     </footer>
   </div>
 
-  <div id="alertBanner" class="alert-banner" hidden role="status" aria-live="assertive">
+  <!-- Recordatorio amable, no una emergencia: se anuncia con cortesía (polite) y sin interrumpir.
+       El anuncio va por esta región persistente (un live region que se oculta con `hidden` se anuncia mal):
+       ui.js cambia su texto al mostrar/ocultar el cartel, que por eso no lleva role ni aria-live propios. -->
+  <div id="alertLive" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="alertBanner" class="alert-banner" hidden>
     <span class="alert-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
            stroke-linecap="round" stroke-linejoin="round">

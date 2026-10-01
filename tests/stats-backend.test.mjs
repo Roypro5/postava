@@ -76,17 +76,16 @@ test("aggregates actual rows into the stats.js response shape", () => {
     },
   ]);
 
-  assert.deepEqual(Object.keys(stats), ["days", "habitDistribution", "fatigue"]);
+  assert.deepEqual(Object.keys(stats), ["days", "habitDistribution"]);
   assert.equal(stats.days.length, 1);
   assert.equal(stats.days[0].pomodoros, 2);
   assert.equal(stats.days[0].focusMinutes, 49);
   assert.equal(stats.days[0].correctMinutes, 35);
   assert.equal(stats.days[0].measuredMinutes, 44);
   assert.equal(stats.days[0].sessions[0].score, 75);
-  assert.deepEqual(stats.fatigue, [
-    { label: "08–10", value: 25 },
-    { label: "10–12", value: 17 },
-  ]);
+  assert.equal(stats.days[0].sessions[0].startedAt, "2025-02-14T09:10:00.000Z");
+  assert.equal(stats.days[0].sessions[0].goodMs, 900_000);
+  assert.equal(stats.days[0].sessions[0].badMs, 300_000);
   assert.equal(stats.habitDistribution.find((habit) => habit.key === "neck").minutes, 5);
 });
 
@@ -103,7 +102,6 @@ test("unmonitored sessions remain completed without inventing a posture score", 
   assert.equal(stats.days[0].score, null);
   assert.equal(stats.days[0].measuredMinutes, 0);
   assert.equal(stats.days[0].sessions[0].score, null);
-  assert.deepEqual(stats.fatigue, []);
 });
 
 test("store scopes every query by authenticated user and binds values", async () => {
@@ -141,7 +139,6 @@ test("store scopes every query by authenticated user and binds values", async ()
   assert.deepEqual(await store.getStats("user-b"), {
     days: [],
     habitDistribution: [],
-    fatigue: [],
   });
   await store.getStats("user-a", 30);
   const reads = queries.filter(({ text }) => text.includes("FROM posture_stats_sessions"));

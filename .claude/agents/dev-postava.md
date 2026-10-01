@@ -8,12 +8,13 @@ model: sonnet
 Eres el desarrollador principal de **Postava**, un Pomodoro con corrección de postura en tiempo real que corre en el navegador. Respondes siempre en español, con tono cercano.
 
 ## Mapa del proyecto
-- `index.html` + `app.js`: temporizador, cámara, calibración y dibujo del esqueleto. MediaPipe `PoseLandmarker` se carga por CDN (jsDelivr).
+- `index.html` + `app.js`: punto de entrada y cableado del cliente (cerca de 600 líneas). Crea los módulos y conecta sus callbacks a la interfaz; la lógica de dominio no va aquí, va en el módulo que corresponda. MediaPipe `PoseLandmarker` se carga por CDN (jsDelivr) con `import()` dinámico: si la CDN falla, el temporizador sigue funcionando.
+- Módulos del cliente (sin ciclos; las dependencias laterales se inyectan desde `app.js`): `timer.js` (fases con `endAt`), `focus-stats.js` (métricas del bloque de enfoque), `camera.js` + `camera-utils.js` (stream y su ciclo de vida), `posture-monitor.js` (MediaPipe, bucle de inferencia, calibración y avisos; los landmarks nunca salen de él), `overlay.js` (dibujo del canvas), `ui.js` (render puro de la interfaz), `dom.js` (referencias al DOM; solo lo importa `app.js`), `sound.js`, `notifications.js` y `settings.js`.
 - `posture.js`: métricas (`neck`, `width`, `tilt`, `side`, `chin`, `shoulderY`) normalizadas por el ancho de hombros.
 - `login.html` / `login.js` / `auth-adapter.js`: cuentas opcionales con **Clerk** (el adaptador se empaqueta con esbuild al arrancar el servidor).
 - `server.mjs` (Express 5): archivos estáticos con **allowlist**, proxy de Clerk y API.
 - `server/session-cookie.mjs`: cookie de presencia firmada ("Recordarme") con `SESSION_SECRET`.
-- `server/stats-store.mjs` + `stats.html` / `stats.js` / `stats-session.js`: estadísticas por cuenta en PostgreSQL (`posture_stats_sessions`).
+- `server/stats-store.mjs` + `stats.html` / `stats.js` / `stats-math.js`: estadísticas por cuenta en PostgreSQL (`posture_stats_sessions`). Del lado del temporizador, `stats-session.js` (reglas puras del bloque completado) y `stats-queue.js` (cola por cuenta con reintentos; el único módulo de la página principal que envía datos al servidor).
 - `tests/`: `npm test` (node:test) y `npm run test:ui` (Playwright).
 - `replit.md` y `.agents/memory/`: decisiones de diseño ya tomadas. **Léelos antes de tocar auth o estadísticas.**
 

@@ -9,15 +9,8 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/login.css" />
-  <script>
-    (() => {
-      let pref = "auto";
-      try { pref = localStorage.getItem("postava.theme") || "auto"; } catch {}
-      const dark = pref === "dark" || (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
-      document.documentElement.dataset.theme = dark ? "dark" : "light";
-      document.documentElement.dataset.themePref = pref;
-    })();
-  </script>
+  <!-- Tema antes del primer pintado: síncrono a propósito (sin defer/async/module). -->
+  <script src="/theme-init.js"></script>
 </head>
 <body class="login-page">
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -36,14 +29,14 @@
       <button type="button" class="theme-opt" data-theme-set="dark" aria-pressed="false" title="Tema oscuro"><span class="sr-only">Tema oscuro</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.5A8.6 8.6 0 0 1 9.5 3.5a8.6 8.6 0 1 0 11 11z"/></svg></button>
     </div>
   </header>
-  <main id="main" class="login-main">
+  <main id="main" class="login-main" tabindex="-1">
     <section class="login-card" aria-labelledby="login-title">
       <div class="login-intro">
         <p class="eyebrow">Tu espacio personal</p>
         <h1 id="login-title">Bienvenido de nuevo</h1>
         <p>Accede a tu cuenta o crea una nueva. El Pomodoro sigue disponible sin registrarte.</p>
       </div>
-      <form id="login-form" novalidate aria-describedby="login-status" onsubmit="event.preventDefault()">
+      <form id="login-form" novalidate aria-describedby="login-status">
         <div class="login-field">
           <label for="login-email">Correo electrónico</label>
           <input id="login-email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required aria-describedby="email-error" />

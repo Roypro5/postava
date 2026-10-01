@@ -5,6 +5,15 @@ export function createAuthAdapter(clerk, request = fetch) {
   let secondFactor;
   let recoveryStarted = false;
   let recoveryFactor;
+  function randomDelay() {
+    const ms = 300 + Math.random() * 400;
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  function codeIncorrectError() {
+    const error = new Error("form_code_incorrect");
+    error.errors = [{ code: "form_code_incorrect" }];
+    return error;
+  }
   async function sessionRequest(method, body) {
     const response = await request("/api/auth/session", {
       method, credentials: "same-origin",
@@ -68,16 +77,29 @@ export function createAuthAdapter(clerk, request = fetch) {
       return finish(await clerk.client.signUp.attemptEmailAddressVerification({ code }));
     },
     async recover(email) {
+      // Never let account existence leak through timing or error shape: a
+      // missing identifier still "starts" recovery, just without a real
+      // factor to complete it against, so later steps behave like a real
+      // account with a wrong code instead of failing instantly.
       recoveryStarted = false;
       recoveryFactor = undefined;
-      const result = await clerk.client.signIn.create({ strategy: "reset_password_email_code", identifier: email });
-      recoveryFactor = result.supportedFirstFactors?.find(f => f.strategy === "reset_password_email_code");
+      try {
+        const result = await clerk.client.signIn.create({ strategy: "reset_password_email_code", identifier: email });
+        recoveryFactor = result.supportedFirstFactors?.find(f => f.strategy === "reset_password_email_code");
+      } catch (error) {
+        if (error?.errors?.[0]?.code !== "form_identifier_not_found") throw error;
+        recoveryFactor = undefined;
+      }
       recoveryStarted = true;
       return { step: "reset-code" };
     },
     async reset(code, password, persistent) {
       if (!recoveryStarted) throw new Error("RECOVERY_NOT_STARTED");
       remember = persistent;
+      if (!recoveryFactor) {
+        await randomDelay();
+        throw codeIncorrectError();
+      }
       if (clerk.client.signIn.status !== "needs_new_password") {
         await clerk.client.signIn.attemptFirstFactor({ strategy: "reset_password_email_code", code });
       }
@@ -95,7 +117,8 @@ export function createAuthAdapter(clerk, request = fetch) {
     async resend(step) {
       if (step === "verify-email") await clerk.client.signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       else if (step === "reset-code") {
-        if (!recoveryStarted || !recoveryFactor?.emailAddressId) throw new Error("RECOVERY_NOT_STARTED");
+        if (!recoveryStarted) throw new Error("RECOVERY_NOT_STARTED");
+        if (!recoveryFactor?.emailAddressId) { await randomDelay(); return; }
         await clerk.client.signIn.prepareFirstFactor({
           strategy: "reset_password_email_code", emailAddressId: recoveryFactor.emailAddressId,
         });
@@ -109,7 +132,15 @@ export function createAuthAdapter(clerk, request = fetch) {
     },
     async signOut() {
       await clerk.signOut();
-      await sessionRequest("DELETE");
+      try {
+        await sessionRequest("DELETE");
+      } catch (error) {
+        // Clerk ya cerró la sesión: es la autoridad real. Una cookie de
+        // presencia residual no da acceso porque las rutas privadas exigen
+        // Clerk + cookie, así que no interrumpimos el logout visible por un
+        // fallo de red al borrarla.
+        console.warn("No se pudo borrar la cookie de presencia:", error);
+      }
     },
   };
 }
