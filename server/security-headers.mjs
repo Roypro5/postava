@@ -6,7 +6,12 @@
  * unresolved uncertainty (Clerk's direct Frontend API host used only outside
  * production) is handled by shipping Report-Only in that case instead of
  * silently allow-listing a guess.
+ *
+ * One origin is dynamic: with no Clerk proxy configured (`proxyUrl` empty),
+ * clerk-js talks straight to the Frontend API host encoded in the publishable
+ * key, so that exact host (see clerkFrontendApiOrigin) is added to connect-src.
  */
+import { parsePublishableKey } from "@clerk/shared/keys";
 
 // MediaPipe Tasks Vision: the PoseLandmarker module (app.js `import`) and its
 // wasm runtime/model glue are both fetched from jsDelivr.
@@ -44,7 +49,58 @@ const CLERK_DEV_FRONTEND_API_HOSTS = [
   "https://*.accounts.dev",
 ];
 
-function buildDirectives({ includeClerkDevHosts }) {
+// Sensitive browser features: the pose monitor needs this origin's camera
+// (getUserMedia with `audio: false`); nothing here uses the microphone or
+// geolocation, and no embedded frame (Turnstile) may ask for the camera.
+const PERMISSIONS_POLICY = "camera=(self), microphone=(), geolocation=()";
+// Six months, this host only: long enough to matter, short enough to back out
+// of, and no `includeSubDomains`/`preload` since we don't control the rest of
+// the domain. Only sent in production (browsers ignore it over plain HTTP).
+const HSTS = "max-age=15552000";
+
+// A plain DNS name: lowercase letters, digits and hyphens in labels of at most
+// 63 characters, at least two labels, and a TLD that starts with a letter (so
+// no IPv4 literal). No wildcard, port, path, userinfo or anything that could
+// add a source or a directive to the header.
+const CLERK_FRONTEND_API_HOST =
+  /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+function isSafeFrontendOrigin(origin) {
+  return (
+    typeof origin === "string" &&
+    origin.startsWith("https://") &&
+    CLERK_FRONTEND_API_HOST.test(origin.slice("https://".length))
+  );
+}
+
+/**
+ * The origin clerk-js contacts directly (`https://<frontendApi>`), or null.
+ *
+ * With a proxy (`proxyUrl` set, same-origin in production) the browser only
+ * talks to this server and nothing has to be added. Without one, clerk-js uses
+ * the Frontend API host encoded in the publishable key. That host is validated
+ * as a strict DNS name here because in production it can derive from the
+ * request's Host header (see publishableKeyFromHost) and ends up in a header.
+ * An invalid key or host adds nothing.
+ */
+export function clerkFrontendApiOrigin({ publishableKey, proxyUrl } = {}) {
+  if (proxyUrl) return null;
+  if (typeof publishableKey !== "string") return null;
+  let frontendApi;
+  try {
+    frontendApi = parsePublishableKey(publishableKey)?.frontendApi;
+  } catch {
+    return null;
+  }
+  if (typeof frontendApi !== "string") return null;
+  const origin = `https://${frontendApi.toLowerCase()}`;
+  return isSafeFrontendOrigin(origin) ? origin : null;
+}
+
+function buildDirectives({ includeClerkDevHosts, clerkFrontendOrigin }) {
+  // No 'unsafe-inline': every script is a same-origin file. The theme
+  // bootstrap that used to be inline in the <head> lives in /theme-init.js and
+  // loads synchronously, so it still runs before the first paint.
   const scriptSrc = ["'self'", MEDIAPIPE_CDN, CLERK_TURNSTILE_HOST, "'wasm-unsafe-eval'"];
   const connectSrc = ["'self'", MEDIAPIPE_CDN, MEDIAPIPE_MODEL_HOST, CLERK_TELEMETRY_HOST];
   const frameSrc = [CLERK_TURNSTILE_HOST];
@@ -53,6 +109,12 @@ function buildDirectives({ includeClerkDevHosts }) {
     scriptSrc.push(...CLERK_DEV_FRONTEND_API_HOSTS);
     connectSrc.push(...CLERK_DEV_FRONTEND_API_HOSTS);
     frameSrc.push(...CLERK_DEV_FRONTEND_API_HOSTS);
+  }
+
+  // Only connect-src: clerk-js is bundled same-origin (auth-adapter.js) and
+  // never injects a <script> or <iframe> from the Frontend API host.
+  if (isSafeFrontendOrigin(clerkFrontendOrigin) && !connectSrc.includes(clerkFrontendOrigin)) {
+    connectSrc.push(clerkFrontendOrigin);
   }
 
   return {
@@ -83,14 +145,57 @@ function serialize(directiveMap) {
     .join("; ");
 }
 
-export function buildContentSecurityPolicy({ isProduction }) {
-  return serialize(buildDirectives({ includeClerkDevHosts: !isProduction }));
+export function buildContentSecurityPolicy({ isProduction, clerkFrontendOrigin } = {}) {
+  return serialize(
+    buildDirectives({ includeClerkDevHosts: !isProduction, clerkFrontendOrigin }),
+  );
 }
 
+/**
+ * `clerkFrontendOrigin(req)` (optional) returns the Clerk Frontend API origin
+ * the browser will contact directly for that request, or null; see
+ * clerkFrontendApiOrigin. A provider that throws or returns anything but a
+ * strict `https://host` leaves the CSP unchanged.
+ *
+ * That origin can come from the request's host, so the same URL may carry a
+ * different CSP for a different Host (or X-Forwarded-Host behind a trusted
+ * proxy). `cspVariesByHost(req)` says whether it does for this request; then the
+ * response says so with `Vary`, or a cache could serve the policy of one host to
+ * another (a hostile Host would leave the baseline policy in the cache, and the
+ * real site would lose its Clerk origin). Default: whenever there is a provider.
+ * A predicate that throws counts as "varies".
+ */
 export function securityHeaders({
   isProduction = process.env.NODE_ENV === "production",
+  clerkFrontendOrigin,
+  cspVariesByHost = () => typeof clerkFrontendOrigin === "function",
 } = {}) {
-  const csp = buildContentSecurityPolicy({ isProduction });
+  const baseCsp = buildContentSecurityPolicy({ isProduction });
+  // A deployment has one Frontend API origin, so remembering the last CSP built
+  // is enough to avoid re-serializing it on every request.
+  let lastOrigin = null;
+  let lastCsp = baseCsp;
+  function cspFor(req) {
+    let origin = null;
+    try {
+      origin = clerkFrontendOrigin?.(req) ?? null;
+    } catch {
+      origin = null;
+    }
+    if (!isSafeFrontendOrigin(origin)) return baseCsp;
+    if (origin !== lastOrigin) {
+      lastCsp = buildContentSecurityPolicy({ isProduction, clerkFrontendOrigin: origin });
+      lastOrigin = origin;
+    }
+    return lastCsp;
+  }
+  function variesByHost(req) {
+    try {
+      return Boolean(cspVariesByHost(req));
+    } catch {
+      return true;
+    }
+  }
   // Development/staging keep Clerk's direct Frontend API host reachable only
   // as Report-Only, since we cannot pin its exact subdomain (see the comment
   // above); production is fully proxied same-origin and ships enforced.
@@ -98,11 +203,20 @@ export function securityHeaders({
     ? "Content-Security-Policy"
     : "Content-Security-Policy-Report-Only";
 
-  return function applySecurityHeaders(_req, res, next) {
+  return function applySecurityHeaders(req, res, next) {
     res.set("X-Content-Type-Options", "nosniff");
     res.set("Referrer-Policy", "strict-origin-when-cross-origin");
     res.set("X-Frame-Options", "DENY");
-    res.set(cspHeaderName, csp);
+    res.set("Permissions-Policy", PERMISSIONS_POLICY);
+    // Isolates this page's browsing context group from any window that opens
+    // it or that it opens (clerk-js signs in with same-page requests, not popups).
+    res.set("Cross-Origin-Opener-Policy", "same-origin");
+    if (isProduction) res.set("Strict-Transport-Security", HSTS);
+    res.set(cspHeaderName, cspFor(req));
+    if (variesByHost(req)) {
+      res.vary("Host");
+      res.vary("X-Forwarded-Host");
+    }
     next();
   };
 }

@@ -237,16 +237,54 @@ export function createStatsStore(pool) {
   };
 }
 
+// The message of a database error is what tells an operator why the stats
+// routes answer 503, but a driver can quote connection details in it. This
+// keeps the useful part: the error code (pg SQLSTATE or a system code such as
+// ECONNREFUSED), and the first line of the message with any URL (connection
+// strings carry credentials) and `password=...`-style assignments redacted,
+// capped in length. Never the error object itself: its stack and properties
+// are not for the log of a request handler. The pool's own errors (an idle
+// client that dies) go through the same function.
+//
+// A secret assignment is a name that contains password/passwd/pwd/secret/token/
+// sslkey (so PGPASSWORD and sslpassword count), an optional closing quote (JSON
+// style), `=` or `:`, and a value that is either a quoted string (which may hold
+// spaces and escaped quotes) or the next run of non-blank characters.
+const URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
+const SECRET_ASSIGNMENT_PATTERN =
+  /\b([a-z0-9_]*(?:password|passwd|pwd|secret|token|sslkey)[a-z0-9_]*)["']?\s*[=:]\s*(?:"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?|\S+)/gi;
+
+export function describeDbError(error) {
+  const rawCode = String(error?.code ?? "");
+  const code = /^[A-Za-z0-9_]{1,32}$/.test(rawCode) ? rawCode : "";
+  const raw =
+    typeof error === "string"
+      ? error
+      : typeof error?.message === "string"
+        ? error.message
+        : "unknown error";
+  const message = raw
+    .split("\n", 1)[0]
+    .replace(URL_PATTERN, "[redacted-url]")
+    .replace(SECRET_ASSIGNMENT_PATTERN, "$1=[redacted]")
+    .slice(0, 200);
+  return code ? `[${code}] ${message}` : message;
+}
+
+// `sendSessionRequired(req, res)` answers a request that has no session. The
+// server passes its own, which tells "nobody is signed in" (401) from "Clerk
+// could not be asked" (503); this default is the plain 401.
 export function createStatsHandlers({
   store,
   authenticatedPresence,
   requestHasPublicOrigin,
+  sendSessionRequired = (_req, res) => res.status(401).json({ error: "SESSION_REQUIRED" }),
 }) {
   function getUser(req, res) {
     try {
       const presence = authenticatedPresence(req);
       if (!presence?.userId) {
-        res.status(401).json({ error: "SESSION_REQUIRED" });
+        sendSessionRequired(req, res);
         return null;
       }
       return presence.userId;
@@ -267,7 +305,8 @@ export function createStatsHandlers({
       if (![7, 30].includes(period)) return res.status(400).json({ error: "INVALID_PERIOD" });
       try {
         return res.json(await store.getStats(userId, period));
-      } catch {
+      } catch (error) {
+        console.error("[stats] Database error while reading stats:", describeDbError(error));
         return res.status(503).json({ error: "STATS_UNAVAILABLE" });
       }
     },
@@ -289,12 +328,54 @@ export function createStatsHandlers({
           saved: true,
           duplicate: !saved,
         });
-      } catch {
+      } catch (error) {
+        console.error("[stats] Database error while saving a session:", describeDbError(error));
         return res.status(503).json({ error: "STATS_UNAVAILABLE" });
       }
     },
   };
 }
 
-const pool = new Pool();
+function positiveInteger(raw, fallback) {
+  if (raw === undefined || String(raw).trim() === "") return fallback;
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Pool limits (the connection itself still comes from the standard PG*
+ * variables, as with `new Pool()`). Every value can be overridden from the
+ * environment; an unset, non-numeric or non-positive override falls back to
+ * the default. No DDL and no session-level settings beyond the timeouts.
+ *
+ *   DB_POOL_MAX                 connections kept open at most (default 5)
+ *   DB_IDLE_TIMEOUT_MS          idle connection is closed after (30 s)
+ *   DB_CONNECTION_TIMEOUT_MS    give up waiting for a connection after (5 s)
+ *   DB_STATEMENT_TIMEOUT_MS     server aborts a statement running longer (10 s)
+ *
+ * `query_timeout` is the client-side backstop for a server that stops
+ * answering altogether, always a little above the server-side timeout.
+ */
+export function poolConfig(env = process.env) {
+  const statementTimeout = positiveInteger(env.DB_STATEMENT_TIMEOUT_MS, 10_000);
+  return {
+    max: positiveInteger(env.DB_POOL_MAX, 5),
+    idleTimeoutMillis: positiveInteger(env.DB_IDLE_TIMEOUT_MS, 30_000),
+    connectionTimeoutMillis: positiveInteger(env.DB_CONNECTION_TIMEOUT_MS, 5_000),
+    statement_timeout: statementTimeout,
+    query_timeout: statementTimeout + 5_000,
+  };
+}
+
+export function createStatsPool({ env = process.env, PoolClass = Pool } = {}) {
+  const pool = new PoolClass(poolConfig(env));
+  // An idle client can fail (database restart, network cut) and pg re-emits
+  // that on the pool; with no listener the process would crash on it.
+  pool.on?.("error", (error) => {
+    console.error("Postgres pool error:", describeDbError(error));
+  });
+  return pool;
+}
+
+const pool = createStatsPool();
 export const statsStore = createStatsStore(pool);

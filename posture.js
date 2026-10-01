@@ -96,51 +96,105 @@ export function lineAngleDifference(a, b) {
  * finitos. Los llamadores deben comprobar `keyPointsVisible(lm)` antes de
  * invocar esta función; con esa comprobación previa, este caso nunca ocurre
  * en la práctica, pero queda como red de seguridad para nuevos llamadores.
+ *
+ * `out` (opcional): objeto ya existente donde escribir el resultado en lugar de
+ * crear uno nuevo. Lo usa el bucle de inferencia (una llamada por fotograma) para
+ * no asignar memoria; las operaciones y su orden son idénticos, así que los
+ * valores son los mismos bit a bit con o sin `out`.
  */
-export function computeMetrics(lm, aspect = 4 / 3) {
+export function computeMetrics(lm, aspect = 4 / 3, out = null) {
   if (!lm) return null;
   for (const i of KEY_POINTS) {
     const p = lm[i];
     if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
   }
-  const P = (i) => ({ x: lm[i].x * aspect, y: lm[i].y });
-  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  // Coordenadas con la X corregida por la relación de aspecto (escalares: sin
+  // objetos intermedios en el camino caliente).
+  const lsx = lm[LM.L_SHOULDER].x * aspect;
+  const lsy = lm[LM.L_SHOULDER].y;
+  const rsx = lm[LM.R_SHOULDER].x * aspect;
+  const rsy = lm[LM.R_SHOULDER].y;
+  const lex = lm[LM.L_EAR].x * aspect;
+  const ley = lm[LM.L_EAR].y;
+  const rex = lm[LM.R_EAR].x * aspect;
+  const rey = lm[LM.R_EAR].y;
+  const noseY = lm[LM.NOSE].y;
 
-  const ls = P(LM.L_SHOULDER);
-  const rs = P(LM.R_SHOULDER);
-  const le = P(LM.L_EAR);
-  const re = P(LM.R_EAR);
-  const nose = P(LM.NOSE);
+  const shoulderMidX = (lsx + rsx) / 2;
+  const shoulderMidY = (lsy + rsy) / 2;
+  const earMidX = (lex + rex) / 2;
+  const earMidY = (ley + rey) / 2;
+  const shoulderW = Math.max(Math.hypot(lsx - rsx, lsy - rsy), 1e-4);
 
-  const shoulderMid = mid(ls, rs);
-  const earMid = mid(le, re);
-  const shoulderW = Math.max(dist(ls, rs), 1e-4);
+  // Cuello: separación vertical oreja→hombro. Al encorvarse, la cabeza
+  // "se hunde" entre los hombros y este valor baja.
+  const neck = (shoulderMidY - earMidY) / shoulderW;
+  // Desnivel de hombros, en grados.
+  const tilt = normalizeLineAngle((Math.atan2(rsy - lsy, rsx - lsx) * 180) / Math.PI);
+  // Desplazamiento lateral de la cabeza respecto al centro de los hombros.
+  const side = (earMidX - shoulderMidX) / shoulderW;
+  // Barbilla hacia abajo: la nariz cae respecto a la línea de las orejas.
+  const chin = (noseY - earMidY) / shoulderW;
 
-  return {
-    // Cuello: separación vertical oreja→hombro. Al encorvarse, la cabeza
-    // "se hunde" entre los hombros y este valor baja.
-    neck: (shoulderMid.y - earMid.y) / shoulderW,
-    // Cercanía a la pantalla: cuanto más cerca, más ancho se ve el torso.
-    width: shoulderW,
-    // Desnivel de hombros, en grados.
-    tilt: normalizeLineAngle(
-      (Math.atan2(rs.y - ls.y, rs.x - ls.x) * 180) / Math.PI
-    ),
-    // Desplazamiento lateral de la cabeza respecto al centro de los hombros.
-    side: (earMid.x - shoulderMid.x) / shoulderW,
-    // Barbilla hacia abajo: la nariz cae respecto a la línea de las orejas.
-    chin: (nose.y - earMid.y) / shoulderW,
-    // Altura de los hombros en el encuadre (para detectar deslizamiento).
-    shoulderY: shoulderMid.y,
-  };
+  // `width` (cercanía a la pantalla: cuanto más cerca, más ancho se ve el torso)
+  // es shoulderW; `shoulderY` (altura de los hombros en el encuadre, para
+  // detectar deslizamiento) es shoulderMidY.
+  if (out) {
+    out.neck = neck;
+    out.width = shoulderW;
+    out.tilt = tilt;
+    out.side = side;
+    out.chin = chin;
+    out.shoulderY = shoulderMidY;
+    return out;
+  }
+  return { neck, width: shoulderW, tilt, side, chin, shoulderY: shoulderMidY };
 }
 
-/* Media exponencial para quitar el temblor entre fotogramas */
-export function smooth(prev, next, alpha = 0.3) {
-  if (!prev) return { ...next };
-  const out = {};
-  for (const k of Object.keys(next)) {
+/* Intervalo nominal de inferencia (INFER_INTERVAL en app.js), usado solo para
+   derivar SMOOTH_TAU_MS abajo: no depende de app.js en tiempo de ejecución. */
+const NOMINAL_INFER_INTERVAL_MS = 66;
+/* alpha fijo que tenía smooth() antes de depender del tiempo transcurrido */
+const LEGACY_ALPHA_AT_NOMINAL_RATE = 0.3;
+
+/* Constante de tiempo del filtro exponencial. Se elige tau para que, a la
+   frecuencia nominal de inferencia (~66 ms/fotograma, ver INFER_INTERVAL en
+   app.js), alpha = 1 - exp(-dt/tau) reproduzca el alpha fijo de 0.3 que
+   usaba antes smooth(): despejando, tau = -dt / ln(1 - alpha)
+   = -66 / ln(0.7) ≈ 185 ms. Con esta tau, si el bucle tarda más en llamar a
+   smooth() (dt mayor: pestaña en segundo plano, pausas) el filtro avanza más
+   hacia el valor nuevo -que es lo correcto tras un hueco largo-, y si dt es
+   más pequeño, suaviza más que antes en vez de aplicar siempre el mismo salto
+   fijo por fotograma. */
+export const SMOOTH_TAU_MS =
+  -NOMINAL_INFER_INTERVAL_MS / Math.log(1 - LEGACY_ALPHA_AT_NOMINAL_RATE);
+
+/**
+ * Media exponencial para quitar el temblor entre fotogramas, dependiente del
+ * tiempo real transcurrido (`dtMs`) en vez de un alpha fijo por llamada.
+ * El llamador debe acotar `dtMs` a un rango razonable (por ejemplo,
+ * descartando saltos larguísimos tras una pestaña oculta o una pausa) antes
+ * de invocar esta función.
+ */
+export function smooth(prev, next, dtMs, tau = SMOOTH_TAU_MS) {
+  return smoothInto({}, prev, next, dtMs, tau);
+}
+
+/**
+ * Igual que `smooth`, pero escribe el resultado en `out` (que puede ser el propio
+ * `prev`: cada clave solo lee su valor anterior antes de sobrescribirlo) en vez
+ * de crear un objeto nuevo. Lo usa el bucle de inferencia para no asignar
+ * memoria por fotograma; los valores son idénticos bit a bit a los de `smooth`.
+ * `for...in` recorre las claves propias de `next` en el mismo orden que
+ * `Object.keys`, sin crear el array intermedio.
+ */
+export function smoothInto(out, prev, next, dtMs, tau = SMOOTH_TAU_MS) {
+  if (!prev) {
+    for (const k in next) out[k] = next[k];
+    return out;
+  }
+  const alpha = 1 - Math.exp(-Math.max(dtMs, 0) / tau);
+  for (const k in next) {
     out[k] = k === "tilt"
       ? normalizeLineAngle(prev[k] + signedLineAngleDelta(prev[k], next[k]) * alpha)
       : prev[k] * (1 - alpha) + next[k] * alpha;
@@ -162,23 +216,69 @@ export const METRIC_CODES = {
  * Desviación de cada métrica respecto a la calibración.
  * `ratio` es la fracción del umbral consumida: 1 = justo en el límite.
  * Es la única fuente de verdad; findIssues() y el HUD leen de aquí.
+ *
+ * `out` (opcional): array de trabajo reutilizable. Sus filas se rellenan en
+ * sitio (se crean solo la primera vez) y se devuelve el propio `out`, de modo que
+ * el bucle de inferencia y el HUD no asignan objetos por fotograma. Las filas
+ * son entonces válidas solo hasta la siguiente llamada con el mismo `out`.
+ * Sin `out` se devuelve, como siempre, un array nuevo de filas nuevas.
  */
-export function metricReport(m, baseline, tolerance = 1) {
-  if (!m || !baseline) return [];
+export function metricReport(m, baseline, tolerance = 1, out = null) {
+  const rows = out || [];
+  if (!m || !baseline) {
+    rows.length = 0;
+    return rows;
+  }
 
-  const deviations = {
-    neckDrop: (baseline.neck - m.neck) / Math.abs(baseline.neck || 1),
-    proximity: (m.width - baseline.width) / baseline.width,
-    shoulderTilt: lineAngleDifference(m.tilt, baseline.tilt),
-    sideLean: Math.abs(m.side - baseline.side),
-    chinDown: m.chin - baseline.chin,
-    slump: (m.shoulderY - baseline.shoulderY) / baseline.width,
-  };
+  // Orden fijo de las filas: neckDrop, proximity, shoulderTilt, sideLean, chinDown, slump.
+  // neckDrop se normaliza por baseline.neck (y no por baseline.width, como
+  // proximity/slump) porque `neck` ya es una distancia relativa al ancho de
+  // hombros (ver computeMetrics): dividir de nuevo por el ancho contaría esa
+  // normalización dos veces. Aquí lo que interesa es qué fracción de la
+  // propia separación oreja-hombro calibrada se ha perdido al encorvarse,
+  // así que la referencia correcta es baseline.neck.
+  fillRow(rows, 0, "neckDrop", (baseline.neck - m.neck) / Math.abs(baseline.neck || 1), tolerance);
+  fillRow(rows, 1, "proximity", (m.width - baseline.width) / baseline.width, tolerance);
+  fillRow(rows, 2, "shoulderTilt", lineAngleDifference(m.tilt, baseline.tilt), tolerance);
+  fillRow(rows, 3, "sideLean", Math.abs(m.side - baseline.side), tolerance);
+  fillRow(rows, 4, "chinDown", m.chin - baseline.chin, tolerance);
+  fillRow(rows, 5, "slump", (m.shoulderY - baseline.shoulderY) / baseline.width, tolerance);
+  rows.length = 6;
+  return rows;
+}
 
-  return Object.entries(deviations).map(([key, value]) => {
-    const limit = TH[key] * tolerance;
-    return { key, code: METRIC_CODES[key], value, limit, ratio: value / limit, exceeded: value > limit };
-  });
+function fillRow(rows, index, key, value, tolerance) {
+  const limit = TH[key] * tolerance;
+  const row = rows[index] ?? (rows[index] = { key, code: "", value, limit, ratio: 0, exceeded: false });
+  row.key = key;
+  row.code = METRIC_CODES[key];
+  row.value = value;
+  row.limit = limit;
+  row.ratio = value / limit;
+  row.exceeded = value > limit;
+}
+
+/**
+ * Filtra las filas de `metricReport` que superan su umbral y las deja en `out`
+ * ordenadas de más a menos grave (ordenación estable: a igual `ratio` se conserva
+ * el orden de las filas). Equivale a `.filter(exceeded).sort(por ratio desc)` sin
+ * crear arrays temporales; con como mucho 6 filas, la inserción directa basta.
+ * Devuelve `out`, cuyas entradas son las propias filas (no copias).
+ */
+export function collectIssues(rows, out = []) {
+  let count = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row.exceeded) continue;
+    let j = count++;
+    while (j > 0 && out[j - 1].ratio < row.ratio) {
+      out[j] = out[j - 1];
+      j--;
+    }
+    out[j] = row;
+  }
+  out.length = count;
+  return out;
 }
 
 /**
@@ -186,9 +286,7 @@ export function metricReport(m, baseline, tolerance = 1) {
  * (`ratio` = cuántas veces se supera el umbral).
  */
 export function findIssues(m, baseline, tolerance = 1) {
-  return metricReport(m, baseline, tolerance)
-    .filter((r) => r.exceeded)
-    .sort((a, b) => b.ratio - a.ratio);
+  return collectIssues(metricReport(m, baseline, tolerance));
 }
 
 /* Promedio de las muestras tomadas durante la calibración */
@@ -216,4 +314,77 @@ export function averageMetrics(samples) {
     }
   }
   return out;
+}
+
+/* Fracción de cada umbral de aviso (TH) que se tolera como dispersión
+   (desviación típica) durante la calibración. Si te mueves mientras se
+   toman las muestras, la media puede salir razonable pero el rango de
+   referencia queda mal definido, y luego se disparan avisos falsos o se
+   dejan pasar posturas malas. 0.4 (40 % del umbral normal) se eligió porque
+   deja margen al temblor natural de estar sentado quieto, pero atrapa un
+   cambio de postura real durante los 3 s de muestreo. */
+export const CALIB_SPREAD_FRACTION = 0.4;
+
+export const CALIB_SPREAD_TH = {
+  neck: TH.neckDrop * CALIB_SPREAD_FRACTION,
+  width: TH.proximity * CALIB_SPREAD_FRACTION,
+  tilt: TH.shoulderTilt * CALIB_SPREAD_FRACTION,
+  shoulderY: TH.slump * CALIB_SPREAD_FRACTION,
+};
+
+function stdDev(values, mean) {
+  if (values.length < 2) return 0;
+  const variance =
+    values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+/**
+ * Dispersión (desviación típica) de las métricas clave tomadas durante la
+ * calibración, en las mismas unidades relativas que usan sus umbrales TH:
+ * - neck: ya normalizado por el ancho de hombros en cada muestra (ver
+ *   computeMetrics), se compara directo con TH.neckDrop.
+ * - width: se usa la variación relativa a su propia media, como hace
+ *   `proximity` en metricReport.
+ * - shoulderY: no viene normalizado (es una posición en pantalla), así que
+ *   se divide por el ancho medio de hombros, igual que `slump`.
+ * - tilt: respeta la periodicidad de 180° de una línea (ver
+ *   normalizeLineAngle) calculando la distancia angular con signo a la media
+ *   circular antes de sacar la desviación típica.
+ * Devuelve `null` si no hay al menos 2 muestras.
+ */
+export function calibrationSpread(samples) {
+  if (!samples || samples.length < 2) return null;
+  const mean = averageMetrics(samples);
+  const widthMean = mean.width || 1;
+
+  const neckValues = samples.map((s) => s.neck);
+  const widthRatios = samples.map((s) => s.width / widthMean - 1);
+  const tiltDeltas = samples.map((s) => signedLineAngleDelta(mean.tilt, s.tilt));
+  const shoulderYRatios = samples.map((s) => (s.shoulderY - mean.shoulderY) / widthMean);
+
+  return {
+    neck: stdDev(neckValues, mean.neck),
+    width: stdDev(widthRatios, 0),
+    tilt: stdDev(tiltDeltas, 0),
+    shoulderY: stdDev(shoulderYRatios, 0),
+  };
+}
+
+/**
+ * Valida que las muestras de calibración sean suficientes y estables.
+ * No lanza: devuelve `{ ok: true }` o `{ ok: false, reason }` para que quien
+ * llame decida el mensaje. `reason` es "insufficient" (pocas muestras
+ * válidas) o "movement" (te has movido mientras se calibraba).
+ */
+export function validateCalibrationSamples(samples, minSamples = 8) {
+  if (!samples || samples.length < minSamples) {
+    return { ok: false, reason: "insufficient" };
+  }
+  const spread = calibrationSpread(samples);
+  const moved = Object.entries(CALIB_SPREAD_TH).some(
+    ([key, limit]) => spread[key] > limit
+  );
+  if (moved) return { ok: false, reason: "movement" };
+  return { ok: true };
 }

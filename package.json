@@ -12,6 +12,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=22.15"
+  },
   "dependencies": {
     "@clerk/clerk-js": "^6.32.1",
     "@clerk/express": "^2.1.69",

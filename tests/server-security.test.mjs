@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import http from "node:http";
 import { once } from "node:events";
-import { createApp } from "../server.mjs";
+import { createApp, handleUnexpectedError } from "../server.mjs";
 import { createRateLimiter } from "../server/rate-limit.mjs";
 import { securityHeaders, buildContentSecurityPolicy } from "../server/security-headers.mjs";
+
+// El SDK de Clerk envía telemetría a sus servidores con claves pk_test: en tests no debe salir nada a la red.
+process.env.CLERK_TELEMETRY_DISABLED ??= "1";
 
 // clerkMiddleware runs on every request and fails closed (500) without a
 // syntactically valid key pair; these are inert test-only placeholders, no
@@ -106,6 +109,153 @@ test("POST /api/auth/session is rate-limited per key with a Retry-After header",
   } finally {
     await close();
   }
+});
+
+test("no hay parser de formularios: un cuerpo urlencoded no se interpreta ni se limita, la ruta responde como siempre", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /express\.urlencoded/);
+
+  const { port, close } = await startServer();
+  try {
+    // Con el parser montado (límite 16 KB) esto acababa en un 500 INTERNAL_ERROR por cuerpo demasiado grande;
+    // sin él llega al manejador de la ruta, que rechaza la petición por falta de Origin propio.
+    const res = await request(port, "/api/auth/session", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `remember=${"x".repeat(20_000)}`,
+    });
+    assert.equal(res.status, 403);
+    assert.deepEqual(JSON.parse(res.body), { error: "UNSAFE_ORIGIN" });
+
+    // El JSON sigue funcionando (mismo camino: sin Origin, 403).
+    const json = await request(port, "/api/auth/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ remember: true }),
+    });
+    assert.equal(json.status, 403);
+  } finally {
+    await close();
+  }
+});
+
+/** Ejecuta `run` capturando todo lo que se escriba con console.error/warn/log; devuelve las líneas ya formateadas. */
+async function captureConsole(run) {
+  const original = { error: console.error, warn: console.warn, log: console.log };
+  const lines = [];
+  const format = (args) =>
+    args.map((arg) => (arg instanceof Error ? `${arg.stack}\n${JSON.stringify({ ...arg })}` : String(arg))).join(" ");
+  for (const method of Object.keys(original)) console[method] = (...args) => lines.push({ method, text: format(args), args });
+  try {
+    await run();
+  } finally {
+    Object.assign(console, original);
+  }
+  return lines;
+}
+
+test("JSON mal formado: 400 BAD_REQUEST genérico, y el log no lleva pila ni un solo trozo del cuerpo", async () => {
+  const { port, close } = await startServer();
+  try {
+    // El error de V8 cita el texto que rodea al fallo y body-parser adjunta el cuerpo entero (err.body).
+    const body = '{"nota":"hunter2-CUERPO-SECRETO-abc" roto}';
+    let res;
+    const lines = await captureConsole(async () => {
+      res = await request(port, "/api/auth/session", {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(body)) },
+        body,
+      });
+    });
+    assert.equal(res.status, 400);
+    assert.deepEqual(JSON.parse(res.body), { error: "BAD_REQUEST" });
+    assert.ok(lines.length >= 1, "el rechazo debe quedar registrado");
+    for (const { text, args } of lines) {
+      assert.ok(!text.includes("hunter2"), `el log no debe contener el cuerpo: ${text}`);
+      assert.ok(!text.includes("SECRETO"), `el log no debe contener el cuerpo: ${text}`);
+      assert.doesNotMatch(text, /\n\s+at /, "sin pila");
+      assert.ok(args.every((arg) => typeof arg === "string"), "solo texto, nunca el objeto de error (arrastra err.body)");
+    }
+  } finally {
+    await close();
+  }
+});
+
+test("cuerpo JSON de más de 16 KB: 413 PAYLOAD_TOO_LARGE y sin volcar el cuerpo al log", async () => {
+  const { port, close } = await startServer();
+  try {
+    const body = JSON.stringify({ nota: "x".repeat(20_000) });
+    let res;
+    const lines = await captureConsole(async () => {
+      res = await request(port, "/api/stats/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(body)) },
+        body,
+      });
+    });
+    assert.equal(res.status, 413);
+    assert.deepEqual(JSON.parse(res.body), { error: "PAYLOAD_TOO_LARGE" });
+    for (const { text } of lines) {
+      assert.ok(!text.includes("xxxxxxxx"), "el log no debe contener el cuerpo");
+      assert.doesNotMatch(text, /\n\s+at /, "sin pila");
+    }
+  } finally {
+    await close();
+  }
+});
+
+test("handleUnexpectedError: cualquier 4xx entero conserva su código con cuerpo genérico; lo demás sigue siendo 500", async () => {
+  const run = async (err, headersSent = false) => {
+    const res = {
+      headersSent,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(body) {
+        this.body = body;
+        return this;
+      },
+    };
+    let forwarded;
+    const lines = await captureConsole(() => handleUnexpectedError(err, {}, res, (next) => (forwarded = next)));
+    return { res, lines, forwarded };
+  };
+  const withStatus = (status, extra = {}) => Object.assign(new Error("mensaje interno"), { status, ...extra });
+
+  for (const [status, code] of [[400, "BAD_REQUEST"], [403, "BAD_REQUEST"], [413, "PAYLOAD_TOO_LARGE"], [415, "BAD_REQUEST"], [431, "BAD_REQUEST"], [499, "BAD_REQUEST"]]) {
+    const { res, lines } = await run(withStatus(status));
+    assert.equal(res.statusCode, status);
+    assert.deepEqual(res.body, { error: code });
+    assert.equal(lines.length, 1);
+    assert.doesNotMatch(lines[0].text, /\n\s+at /);
+  }
+  // Solo se registra `type` (identificador fijo de body-parser) o el mensaje, jamás el cuerpo (err.body).
+  const parse = await run(withStatus(400, { type: "entity.parse.failed", body: "hunter2-cuerpo", message: 'Unexpected token, "hunter2-cuerpo" no es JSON' }));
+  assert.equal(parse.res.statusCode, 400);
+  assert.ok(parse.lines.every(({ text }) => !text.includes("hunter2")));
+  assert.match(parse.lines[0].text, /entity\.parse\.failed/);
+  const plain = await run(withStatus(400, { body: "hunter2-cuerpo" }));
+  assert.match(plain.lines[0].text, /mensaje interno/);
+  assert.ok(plain.lines.every(({ text }) => !text.includes("hunter2")));
+  // `statusCode` (así lo llaman algunas bibliotecas) también vale.
+  assert.equal((await run(Object.assign(new Error("x"), { statusCode: 431 }))).res.statusCode, 431);
+
+  // Los 5xx reales y cualquier estado que no sea un entero 4xx: 500 genérico, sin filtrar el mensaje.
+  for (const status of [500, 503, 302, 200, 600, 399, 400.5, "400", NaN, null, undefined]) {
+    const { res, lines } = await run(withStatus(status, { message: "detalle-interno" }));
+    assert.equal(res.statusCode, 500, String(status));
+    assert.deepEqual(res.body, { error: "INTERNAL_ERROR" }, String(status));
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].method, "error");
+  }
+
+  // Con la respuesta ya empezada se delega en Express también para los 4xx.
+  const err = withStatus(400);
+  const started = await run(err, true);
+  assert.equal(started.forwarded, err);
+  assert.equal(started.res.statusCode, undefined);
 });
 
 test("createRateLimiter resets after its window and prunes stale keys on sweep", () => {

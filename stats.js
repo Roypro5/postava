@@ -1,4 +1,5 @@
 import { loadAuth } from "/assets/auth-adapter.bundle.js";
+import { number, computeFatigue, computeScore } from "/stats-math.js";
 
 const $ = (id) => document.getElementById(id);
 const state = { days: [], data: null, period: 7 };
@@ -11,17 +12,6 @@ const issueLabels = {
   tilt: "Inclinación",
   distance: "Distancia",
 };
-// Franjas horarias en hora LOCAL del navegador (el servidor solo agrupa los
-// días por fecha UTC, ver replit.md; la fatiga se calcula aquí porque necesita
-// la hora local real de cada sesión).
-const FATIGUE_BUCKETS = [
-  { label: "08–10", start: 8 },
-  { label: "10–12", start: 10 },
-  { label: "12–14", start: 12 },
-  { label: "14–16", start: 14 },
-  { label: "16–18", start: 16 },
-  { label: "18–20", start: 18 },
-];
 
 function redirectToSignIn(reason = "") {
   const suffix = reason ? `&reason=${encodeURIComponent(reason)}` : "";
@@ -116,47 +106,15 @@ function activeDays() {
   return state.days;
 }
 
-function number(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-}
-
 function total(key) {
   return activeDays().reduce((sum, day) => sum + number(day[key]), 0);
 }
 
 function localSessionTime(session) {
-  if (typeof session.startedAt === "string") {
-    const date = new Date(session.startedAt);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-    }
-  }
-  // Compatibilidad con respuestas antiguas que ya traían la hora formateada.
-  return session.start || "—";
-}
-
-function computeFatigue(days) {
-  const byStart = new Map(FATIGUE_BUCKETS.map((bucket) => [bucket.start, { goodMs: 0, badMs: 0, sessions: 0 }]));
-  days.forEach((day) => {
-    (Array.isArray(day.sessions) ? day.sessions : []).forEach((session) => {
-      if (typeof session.startedAt !== "string") return;
-      const date = new Date(session.startedAt);
-      if (Number.isNaN(date.getTime())) return;
-      const hour = date.getHours();
-      const bucketStart = FATIGUE_BUCKETS.find((bucket) => hour >= bucket.start && hour < bucket.start + 2)?.start;
-      if (bucketStart === undefined) return;
-      const bucket = byStart.get(bucketStart);
-      bucket.goodMs += number(session.goodMs);
-      bucket.badMs += number(session.badMs);
-      bucket.sessions += 1;
-    });
-  });
-  return FATIGUE_BUCKETS.flatMap(({ label, start }) => {
-    const bucket = byStart.get(start);
-    if (!bucket.sessions || bucket.goodMs + bucket.badMs === 0) return [];
-    return [{ label, value: Math.round((bucket.badMs / (bucket.goodMs + bucket.badMs)) * 100) }];
-  });
+  if (typeof session.startedAt !== "string") return "—";
+  const date = new Date(session.startedAt);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatMinutes(minutes) {
@@ -172,8 +130,22 @@ function make(tag, className, text) {
   return element;
 }
 
-function appendEmpty(container, message) {
-  container.replaceChildren(make("p", "stats-empty", message));
+/* `tag`: "li" cuando el contenedor es una lista (un <p> dentro de un <ul> no es HTML válido) */
+function appendEmpty(container, message, tag = "p") {
+  container.replaceChildren(make(tag, "stats-empty", message));
+}
+
+function dayName(day) {
+  return String(day.label || day.date || "");
+}
+
+/* Resumen accesible de una gráfica: una lista visualmente oculta (.sr-only) junto a ella con
+   los mismos valores que pinta, porque la gráfica es role="img" y su contenido no se lee.
+   Sin días no hay nada que listar: se oculta la lista en lugar de anunciar una vacía. */
+function renderSummaryList(id, lines) {
+  const list = $(id);
+  list.replaceChildren(...lines.map((line) => make("li", "", line)));
+  list.hidden = !lines.length;
 }
 
 function render() {
@@ -182,10 +154,7 @@ function render() {
   const correct = Math.min(focus, days.reduce((sum, day) => sum + number(day.correctMinutes), 0));
   const measured = Math.min(focus, days.reduce((sum, day) => sum + number(day.measuredMinutes), 0));
   const pomodoros = days.reduce((sum, day) => sum + number(day.pomodoros), 0);
-  const scoredDays = days.filter((day) => day.score !== null && Number.isFinite(Number(day.score)));
-  const score = scoredDays.length
-    ? Math.round(scoredDays.reduce((sum, day) => sum + number(day.score), 0) / scoredDays.length)
-    : null;
+  const score = computeScore(days);
 
   $("score").textContent = score === null ? "—" : score;
   $("scoreFill").style.width = `${score ?? 0}%`;
@@ -218,6 +187,10 @@ function renderHistogram(days) {
     container.append(bar);
   });
   if (!days.length) appendEmpty(container, "Sin actividad");
+  renderSummaryList("durationHistogramSummary", days.map((day) => {
+    const minutes = number(day.focusMinutes);
+    return `${dayName(day)}: ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+  }));
 }
 
 function renderDailyBars(days) {
@@ -237,6 +210,10 @@ function renderDailyBars(days) {
     container.append(column);
   });
   if (!days.length) appendEmpty(container, "Sin actividad");
+  renderSummaryList("dailyBarsSummary", days.map((day) => {
+    const hasScore = day.score !== null && Number.isFinite(Number(day.score));
+    return `${dayName(day)}: ${hasScore ? `Posture Score ${Math.min(100, number(day.score))}` : "sin puntuación"}`;
+  }));
 }
 
 function renderSessions(days) {
@@ -246,7 +223,7 @@ function renderSessions(days) {
     (Array.isArray(day.sessions) ? day.sessions : []).map((session) => ({ ...session, label: day.label || day.date || "" }))
   ).reverse().slice(0, 8);
   sessions.forEach((session) => {
-    const row = make("div", "session-row");
+    const row = make("li", "session-row");
     const hasScore = session.score !== null && Number.isFinite(Number(session.score));
     const score = hasScore ? Math.min(100, number(session.score)) : null;
     const state = make("i", `session-state${score === null || score < 85 ? " normal" : ""}`);
@@ -257,7 +234,7 @@ function renderSessions(days) {
     row.append(state, description, make("span", "session-duration", `${number(session.minutes)} min`), make("strong", "session-score", score === null ? "—" : `${score}`));
     container.append(row);
   });
-  if (!sessions.length) appendEmpty(container, "Tus sesiones completadas aparecerán aquí.");
+  if (!sessions.length) appendEmpty(container, "Tus sesiones completadas aparecerán aquí.", "li");
 }
 
 function renderDistribution(focus, correct) {
@@ -333,9 +310,37 @@ function renderFatigue(items) {
 }
 
 document.querySelectorAll(".period").forEach((button) => button.addEventListener("click", () => {
-  document.querySelectorAll(".period").forEach((item) => item.classList.toggle("active", item === button));
+  document.querySelectorAll(".period").forEach((item) => {
+    item.classList.toggle("active", item === button);
+    item.setAttribute("aria-pressed", String(item === button)); // el lector anuncia cuál está activo
+  });
   state.period = Number(button.dataset.period) === 30 ? 30 : 7;
   loadStats();
 }));
+
+/* Tooltips .info (WCAG 1.4.13, contenido al pasar el ratón o enfocar). Visibles y con el puntero
+   permitido encima: lo resuelve stats.css (el aviso recibe el puntero, sin huecos). Descartables:
+   Esc oculta el aviso sin mover el foco ni el puntero (clase .tip-dismissed) y vuelve a estar
+   disponible cuando el puntero sale y el foco se va. */
+function setupTooltips() {
+  const tips = new Map([...document.querySelectorAll(".info[data-tip]")].map((tip) => [tip, { hover: false, focus: false }]));
+  const release = (tip) => {
+    const active = tips.get(tip);
+    if (!active.hover && !active.focus) tip.classList.remove("tip-dismissed");
+  };
+  tips.forEach((active, tip) => {
+    tip.addEventListener("mouseenter", () => { active.hover = true; });
+    tip.addEventListener("mouseleave", () => { active.hover = false; release(tip); });
+    tip.addEventListener("focus", () => { active.focus = true; });
+    tip.addEventListener("blur", () => { active.focus = false; release(tip); });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    tips.forEach((active, tip) => {
+      if (active.hover || active.focus) tip.classList.add("tip-dismissed");
+    });
+  });
+}
+setupTooltips();
 
 loadStats();

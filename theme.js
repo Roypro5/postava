@@ -3,8 +3,9 @@
    Solo presentación: no toca nada de la lógica de postura ni del temporizador.
    Guarda la preferencia en su propia clave para no interferir con los ajustes.
 
-   El tema efectivo lo resuelve el script en línea del <head> antes del primer
-   pintado; aquí solo se cablean los botones y se escucha el cambio del sistema.
+   El tema efectivo lo resuelve theme-init.js (script síncrono del <head>) antes
+   del primer pintado; aquí solo se cablean los botones y se escucha el cambio
+   del sistema.
    ───────────────────────────────────────────────────────────────────────── */
 
 const KEY = "postava.theme";

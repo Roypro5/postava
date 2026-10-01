@@ -2,10 +2,24 @@ import {
   createHmac,
   timingSafeEqual,
 } from "node:crypto";
-import { getClerkProxyHost } from "./middlewares/clerkProxyMiddleware.mjs";
+import {
+  getClerkProxyHost,
+  getTrustedForwardedProtocol,
+} from "./middlewares/clerkProxyMiddleware.mjs";
 
+// `__Host-` requires Secure + Path=/ + no Domain, in every environment, and it
+// is deliberately NOT relaxed by NODE_ENV. Chromium and Firefox are documented
+// to accept Secure cookies from http://localhost (a secure context), Safari is
+// known not to (there the account features, never the guest Pomodoro, need an
+// HTTPS origin). That could not be verified without a browser here, so the
+// production cookie is left as strict as it is.
 export const APP_SESSION_COOKIE = "__Host-postava_presence";
+// "Recordarme": persistent cookie, and the signed marker lasts as long.
 export const PRESENCE_LIFETIME_SECONDS = 30 * 24 * 60 * 60;
+// Without "Recordarme" the cookie has no Max-Age (it belongs to the browser
+// session), but browsers can restore session cookies after a restart, so the
+// signed marker itself also stops being valid after this long.
+export const PRESENCE_SESSION_LIFETIME_SECONDS = 12 * 60 * 60;
 
 function encode(value) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -36,10 +50,13 @@ export function createPresenceValue(
   if (!sessionId || typeof remember !== "boolean" || !secret) {
     throw new TypeError("A session id, remember choice, and secret are required");
   }
+  const lifetimeSeconds = remember
+    ? PRESENCE_LIFETIME_SECONDS
+    : PRESENCE_SESSION_LIFETIME_SECONDS;
   const payload = encode({
     sessionId,
     remember,
-    expiresAt: now + PRESENCE_LIFETIME_SECONDS * 1000,
+    expiresAt: now + lifetimeSeconds * 1000,
   });
   return `${payload}.${signature(payload, secret)}`;
 }
@@ -132,16 +149,15 @@ export function requestHasPublicOrigin(req) {
   try {
     const originUrl = new URL(origin);
     if (originUrl.username || originUrl.password) return false;
-    const forwardedProto = req.headers["x-forwarded-proto"];
-    const rawProto = Array.isArray(forwardedProto)
-      ? forwardedProto[0]
-      : forwardedProto;
-    const publicProtocol =
-      rawProto?.split(",")[0]?.trim().toLowerCase() || req.protocol;
+    // X-Forwarded-Proto is honored only from a trusted hop and only as
+    // http/https, exactly like the host; otherwise it is the connection's own
+    // protocol (Express's req.protocol). Anything that is not http or https
+    // cannot be a public origin.
+    const publicProtocol = getTrustedForwardedProtocol(req) ?? req.protocol;
+    if (publicProtocol !== "http" && publicProtocol !== "https") return false;
     return (
       originUrl.host.toLowerCase() === publicHost.toLowerCase() &&
-      (!publicProtocol ||
-        originUrl.protocol.toLowerCase() === `${publicProtocol}:`)
+      originUrl.protocol.toLowerCase() === `${publicProtocol}:`
     );
   } catch {
     return false;

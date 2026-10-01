@@ -1,0 +1,48 @@
+/* Referencias del DOM de la página principal (solo referencias, sin lógica). */
+
+export const $ = (id) => document.getElementById(id);
+
+export const el = {
+  phase: $("phaseLabel"),
+  cycle: $("cycleLabel"),
+  time: $("timerDisplay"),
+  timeHint: $("timerHint"),
+  ring: $("ringProgress"),
+  focusMins: $("focusMins"),
+  breakMins: $("breakMins"),
+  btnStart: $("btnStart"),
+  btnSkip: $("btnSkip"),
+  btnReset: $("btnReset"),
+  video: $("video"),
+  overlay: $("overlay"),
+  stage: $("stage"),
+  placeholder: $("camPlaceholder"),
+  calibOverlay: $("calibOverlay"),
+  calibCount: $("calibCount"),
+  calibHint: $("calibHint"),
+  badge: $("postureBadge"),
+  postureMsg: $("postureMsg"),
+  holdFill: $("holdFill"),
+  btnCalibrate: $("btnCalibrate"),
+  btnCamera: $("btnCamera"),
+  tolerance: $("tolerance"),
+  tolValue: $("tolValue"),
+  delaySeconds: $("delaySeconds"),
+  delayValue: $("delayValue"),
+  soundToggle: $("soundToggle"),
+  skeletonToggle: $("skeletonToggle"),
+  hudToggle: $("hudToggle"),
+  hideVideoToggle: $("hideVideoToggle"),
+  camOnlyRunning: $("camOnlyRunning"),
+  notifyToggle: $("notifyToggle"),
+  notifyStatus: $("notifyStatus"),
+  goodPct: $("goodPct"),
+  alertCount: $("alertCount"),
+  focusDone: $("focusDone"),
+  alertBanner: $("alertBanner"),
+  alertReason: $("alertReason"),
+  alertLive: $("alertLive"),
+  engine: $("engineStatus"),
+};
+
+export const ctx = el.overlay.getContext("2d");
