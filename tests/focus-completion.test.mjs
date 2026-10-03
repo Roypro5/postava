@@ -67,8 +67,11 @@ function setup({ accountId = USER, recordCompletedFocus } = {}) {
     },
     /** Deja correr el reloj y da el tick del intervalo de 250 ms. */
     elapse(ms) {
-      clock.advance(ms);
-      timer.tick();
+      // Ticks de 30 s: un hueco largo se interpretaría como suspensión del equipo.
+      for (let left = ms; left > 0; left -= 30_000) {
+        clock.advance(Math.min(30_000, left));
+        timer.tick();
+      }
     },
   };
   return { clock, seen, focusStats, timer, ...actions };

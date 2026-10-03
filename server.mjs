@@ -19,12 +19,16 @@ import {
 import { createStatsHandlers, statsStore } from "./server/stats-store.mjs";
 import { clerkFrontendApiOrigin, securityHeaders } from "./server/security-headers.mjs";
 import { createRateLimiter } from "./server/rate-limit.mjs";
-import { checkStartupConfig } from "./server/startup-config.mjs";
+import { applyProductionMode, checkStartupConfig } from "./server/startup-config.mjs";
 import { isClerkSecretKeyConfigured } from "./server/clerk-config.mjs";
 import { createLogThrottle } from "./server/log-throttle.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const port = Number(process.argv[2]) || Number(process.env.PORT) || 5000;
+// The port is the first argument that is not a flag (`--production` may come first).
+const port =
+  Number(process.argv.slice(2).find((arg) => !arg.startsWith("--"))) ||
+  Number(process.env.PORT) ||
+  5000;
 
 export async function bundleFrontend() {
   const outfile = resolve(root, "assets/auth-adapter.bundle.js");
@@ -566,6 +570,9 @@ const isMain =
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
+  // First of all: it sets NODE_ENV, which everything below reads. Note: dependencies that read
+  // NODE_ENV at import time (the static imports above) already saw the old value.
+  for (const warning of applyProductionMode()) console.warn(`[config] WARNING: ${warning}`);
   const { errors, warnings } = checkStartupConfig();
   for (const warning of warnings) console.warn(`[config] Warning: ${warning}`);
   if (errors.length > 0) {

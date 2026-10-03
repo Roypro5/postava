@@ -201,6 +201,18 @@ export function createPostureMonitor({
   function stop() {
     if (rafId !== null) cancelFrame(rafId);
     rafId = null;
+    resetSession();
+  }
+
+  /* Descarta el estado transitorio del aviso (tramo malo, racha buena, repetición,
+     cartel) para que el siguiente bloque de enfoque empiece de cero y respete el
+     retardo. No toca los acumulados (goodMs, badMs, alerts) ni la calibración. */
+  function resetSession() {
+    posture.badSince = null;
+    posture.goodStreak = 0;
+    posture.lastAlertAt = 0;
+    posture.showingIssue = false;
+    if (posture.alerting) clearAlert(); // sin onClear espurio si no había aviso
   }
 
   /* ── Bucle de inferencia ─────────────────────────────────────────────── */
@@ -356,6 +368,9 @@ export function createPostureMonitor({
     // Fuera de la fase de enfoque solo mostramos el estado, sin avisos ni conteo.
     if (!monitoringActive()) {
       focusStats.clearActiveIssues();
+      if (posture.badSince !== null || posture.alerting || posture.goodStreak || posture.lastAlertAt || posture.showingIssue) {
+        resetSession(); // un tramo malo viejo no debe avisar al instante en el próximo enfoque
+      }
       onBadge(bad ? "warn" : "good", bad ? "Postura mejorable" : "Postura correcta");
       onHold(HOLD_ZERO);
       return;
@@ -483,6 +498,7 @@ export function createPostureMonitor({
     handleCalibration,
     monitoringActive,
     evaluate,
+    resetSession,
     handleNotDetected,
     raiseAlert,
     clearAlert,

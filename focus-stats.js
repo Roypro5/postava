@@ -30,11 +30,17 @@ export function createFocusStats(now = Date.now) {
       if (!stats.activeSince) stats.activeSince = now();
     },
 
-    stop() {
+    // `capMs` (opcional): tope del tiempo total del bloque (duración planificada).
+    // Si el equipo se suspende con el bloque en marcha, now() salta al despertar;
+    // el tope evita contar ese tiempo dormido como enfoque.
+    // `atMs` (opcional): instante de cierre (por defecto, ahora); sirve para cerrar
+    // en el último tick fiable tras una suspensión, sin contar el tiempo dormido.
+    stop(capMs = Infinity, atMs = now()) {
       if (stats.activeSince) {
-        stats.elapsedMs += Math.max(0, now() - stats.activeSince);
+        stats.elapsedMs += Math.max(0, atMs - stats.activeSince);
         stats.activeSince = null;
       }
+      if (stats.elapsedMs > capMs) stats.elapsedMs = Math.max(0, capMs);
     },
 
     reset() {

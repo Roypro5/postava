@@ -65,6 +65,58 @@ export function isLowEntropySessionSecret(secret) {
   return new Set(value).size < MIN_SESSION_SECRET_DISTINCT_CHARS || isRepeatedPattern(value);
 }
 
+/**
+ * Decides the production mode before anything reads NODE_ENV (CSP, HSTS, the
+ * Clerk proxy and checkStartupConfig all read it when they are created, never at
+ * import time, so calling this first in the `isMain` block of server.mjs is
+ * enough). Sets env.NODE_ENV = "production" when:
+ *  - the `--production` flag is on the command line (`npm run start:prod`, a
+ *    portable replacement for `NODE_ENV=production node ...`, which cmd.exe
+ *    does not understand), or
+ *  - NODE_ENV is unset and REPLIT_DEPLOYMENT === "1" (a Replit deployment, where
+ *    nothing sets NODE_ENV for us). That inference is announced loudly.
+ * An explicit NODE_ENV is never overridden by the Replit inference: a deployment
+ * that sets NODE_ENV=development on purpose gets a warning, not a silent change.
+ * Returns the warnings to print.
+ */
+export function applyProductionMode({ argv = process.argv.slice(2), env = process.env } = {}) {
+  const warnings = [];
+  const explicit = typeof env.NODE_ENV === "string" && env.NODE_ENV.trim() !== "";
+  // Anything that looks like a flag but is not `--production` is most likely a typo
+  // (`--prod`, `-production`) that would silently leave the server in development mode.
+  for (const arg of argv) {
+    if (typeof arg === "string" && arg.startsWith("-") && arg !== "--production") {
+      warnings.push(
+        `Unrecognized argument ${JSON.stringify(arg)} ignored (the only flag is --production): ` +
+          "if you meant production mode, the server is NOT running in it.",
+      );
+    }
+  }
+  if (argv.includes("--production")) {
+    if (explicit && env.NODE_ENV !== "production") {
+      warnings.push(
+        `--production overrides NODE_ENV=${JSON.stringify(env.NODE_ENV)}: running in PRODUCTION mode.`,
+      );
+    }
+    env.NODE_ENV = "production";
+  } else if (env.REPLIT_DEPLOYMENT === "1") {
+    if (!explicit) {
+      env.NODE_ENV = "production";
+      warnings.push(
+        "REPLIT_DEPLOYMENT=1 and NODE_ENV is not set: running in PRODUCTION mode " +
+          "(enforced CSP, HSTS, Clerk proxy, fatal SESSION_SECRET checks). " +
+          "Set NODE_ENV=production or start with `npm run start:prod` to make it explicit.",
+      );
+    } else if (env.NODE_ENV !== "production") {
+      warnings.push(
+        `REPLIT_DEPLOYMENT=1 but NODE_ENV=${JSON.stringify(env.NODE_ENV)}: this deployment runs WITHOUT ` +
+          "production hardening (CSP is Report-Only, no HSTS, Clerk proxy off, weak SESSION_SECRET is not fatal).",
+      );
+    }
+  }
+  return warnings;
+}
+
 export function checkStartupConfig({
   env = process.env,
   isProduction = env.NODE_ENV === "production",

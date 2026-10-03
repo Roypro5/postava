@@ -36,12 +36,19 @@ const timer = createTimer({
   onTick: () => renderTimer(timer),
   onPhaseEnd: ({ from, skipped }) => {
     soundPhaseEnd();
-    monitor.clearAlert();
+    monitor.resetSession();
     if (from === "focus") {
-      focusStats.stop();
+      // Tope = duración planificada: una suspensión del equipo no infla el bloque.
+      focusStats.stop(timer.total);
       if (!skipped && focusStats.elapsedMs > 0) statsQueue.recordCompletedFocus(focusStats);
       focusStats.reset();
     }
+  },
+  onSuspend: ({ at }) => {
+    // El equipo durmió con el reloj en marcha: el timer ya está en pausa con el
+    // restante congelado en `at`. Se cierra el enfoque en ese instante.
+    enterPausedState(at);
+    setMessage("Pausado: el equipo estuvo suspendido.");
   },
   onComplete: ({ from, skipped }) => {
     if (from === "focus") {
@@ -320,7 +327,7 @@ function stopCamera() {
   ui.renderCameraOff();
   ctx.clearRect(0, 0, el.overlay.width, el.overlay.height);
   monitor.cancelCalibration();
-  monitor.clearAlert();
+  monitor.resetSession();
   setBadge("idle", "Sin monitorizar");
   el.holdFill.style.width = "0%";
 }
@@ -444,13 +451,21 @@ async function startTimer() {
 }
 
 function pauseTimer() {
-  if (timer.phase === "focus") focusStats.stop();
+  // Si el equipo acaba de despertar, se detecta la suspensión (onSuspend ya
+  // pausa) en vez de contar el sueño como enfoque.
+  if (timer.checkSuspend()) return;
   timer.pause();
+  enterPausedState();
+}
+
+// Estado de pausa de la interfaz y de las métricas; `timer` ya está pausado.
+// `atMs`: instante de cierre del enfoque (por defecto, ahora).
+function enterPausedState(atMs) {
+  if (timer.phase === "focus") focusStats.stop(timer.total - timer.remaining, atMs);
   el.btnStart.textContent = "Reanudar";
   el.timeHint.textContent = "en pausa";
   el.holdFill.style.width = "0%";
-  posture.badSince = null;
-  monitor.clearAlert();
+  monitor.resetSession();
   if (el.camOnlyRunning.checked) stopCamera();
   renderTimer(timer);
 }
@@ -462,8 +477,7 @@ function resetTimer() {
   posture.goodMs = 0;
   posture.badMs = 0;
   posture.alerts = 0;
-  posture.badSince = null;
-  monitor.clearAlert();
+  monitor.resetSession();
   timer.reset();
   el.btnStart.textContent = "Iniciar";
   el.timeHint.textContent = "listo para empezar";
@@ -480,6 +494,8 @@ el.btnStart.addEventListener("click", () => {
 });
 
 el.btnSkip.addEventListener("click", () => {
+  // Igual que pausar: si el equipo acaba de despertar, se pausa en vez de saltar.
+  if (timer.checkSuspend()) return;
   startEpoch++; // descarta un arranque que aún espera a la cuenta (ver startEpoch)
   timer.skip();
 });
@@ -593,6 +609,11 @@ ui.initRing();
 
 timer.setPhase("focus");
 setBadge("idle", "Sin monitorizar");
+// La suspensión solo se vigila con la página visible: oculta, un hueco largo
+// puede ser throttling/congelado de pestaña y no debe pausar el Pomodoro.
+const syncWatch = () => timer.setSuspendWatch(document.visibilityState === "visible");
+document.addEventListener("visibilitychange", syncWatch);
+syncWatch();
 setInterval(() => timer.tick(), 250);
 updateStats(true);
 statsQueue.resumePending();

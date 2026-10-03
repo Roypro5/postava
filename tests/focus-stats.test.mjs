@@ -188,3 +188,45 @@ test("sin accountId (invitado) no hay payload", () => {
   stats.begin();
   assert.equal(completedFocusPayload(stats, "id-1"), null);
 });
+
+test("stop(capMs): una suspensión del equipo no infla el tiempo de enfoque", () => {
+  let t = 1_000_000;
+  const stats = createFocusStats(() => t);
+  stats.begin();
+  t += 10 * 60_000;
+  stats.stop(25 * 60_000); // dentro del tope: se respeta
+  assert.equal(stats.elapsedMs, 10 * 60_000);
+  stats.begin();
+  t += 8 * 3_600_000; // portátil dormido 8 h
+  stats.stop(25 * 60_000);
+  assert.equal(stats.elapsedMs, 25 * 60_000, "acotado al total planificado");
+  assert.equal(completedFocusPayload({ ...stats.snapshot(), accountId: "u" }, "i").durationMinutes, 25);
+});
+
+test("stop() sin tope conserva el comportamiento anterior", () => {
+  let t = 1000;
+  const stats = createFocusStats(() => t);
+  stats.begin();
+  t += 3_600_000;
+  stats.stop();
+  assert.equal(stats.elapsedMs, 3_600_000);
+});
+
+test("stop(capMs, atMs) cierra en el instante dado sin contar el tiempo dormido", () => {
+  let t = 1_000_000;
+  const stats = createFocusStats(() => t);
+  stats.begin();
+  const lastTick = t + 4 * 60_000;
+  t += 9 * 3_600_000; // despierta 9 h después
+  stats.stop(25 * 60_000, lastTick);
+  assert.equal(stats.elapsedMs, 4 * 60_000);
+  assert.equal(stats.activeSince, null);
+});
+
+test("stop(capMs, atMs) con atMs anterior al inicio no resta tiempo", () => {
+  let t = 5_000;
+  const stats = createFocusStats(() => t);
+  stats.begin();
+  stats.stop(Infinity, 1_000);
+  assert.equal(stats.elapsedMs, 0);
+});

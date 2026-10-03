@@ -150,7 +150,8 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 | `CLERK_SECRET_KEY` | clave secreta de Clerk usada por el proxy del servidor |
 | `CLERK_PUBLISHABLE_KEY` / `VITE_CLERK_PUBLISHABLE_KEY` | clave pública de Clerk para el cliente |
 | `VITE_CLERK_PROXY_URL` | URL del proxy de Clerk que usa el adaptador empaquetado; en producción debe ser `https://<tu-dominio>/api/__clerk`. Si queda vacía, clerk-js habla directamente con el host de la clave pública y la CSP de producción debe permitirlo: comprueba el login con la CSP activa antes de publicar |
-| `NODE_ENV` | condiciona el comportamiento del proxy de Clerk en producción |
+| `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Nada lo fija por sí solo: usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. En un despliegue de Replit (`REPLIT_DEPLOYMENT=1`) sin `NODE_ENV`, el servidor entra en producción y lo avisa en el log; si `NODE_ENV` está definido con otro valor, se respeta y se avisa de que no hay endurecimiento |
+| `REPLIT_DEPLOYMENT` | lo define Replit en los despliegues (`1`); solo se lee para decidir el modo producción como se explica arriba |
 | `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGPORT` | conexión de `pg` (`new Pool()` sin argumentos; `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
 
 Ninguna de estas variables debe imprimirse ni commitearse con su valor real.

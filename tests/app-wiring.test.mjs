@@ -220,6 +220,7 @@ function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, st
   const documentHandlers = {};
   const fakeDocument = {
     hidden: false,
+    visibilityState: "visible",
     title: "",
     getElementById: (id) => (elements[id] ??= makeElement(id)),
     querySelectorAll: (selector) => (selector === ".chip" ? chips : []),
@@ -422,6 +423,13 @@ function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, st
       (documentHandlers.keydown || []).forEach((fn) => fn(event));
       return event;
     },
+    /** Cambia la visibilidad de la página y dispara `visibilitychange`. */
+    setVisibility(state) {
+      fakeDocument.visibilityState = state;
+      fakeDocument.hidden = state !== "visible";
+      (documentHandlers.visibilitychange || []).forEach((fn) => fn({ type: "visibilitychange" }));
+    },
+    documentHandlerCount: (type) => (documentHandlers[type] || []).length,
     /** Dispara un evento de `window` (pagehide, beforeunload, pageshow…). */
     emitWindow: (type, extra = {}) => (windowHandlers[type] || []).forEach((fn) => fn({ type, ...extra })),
     windowHandlerCount: (type) => (windowHandlers[type] || []).length,
@@ -450,6 +458,13 @@ function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, st
     },
     /** Dispara el setInterval del temporizador (el reloj lo mueve `advance`). */
     tick() { intervals.forEach(({ fn }) => fn()); },
+    /** Deja correr `ms` con un tick cada 30 s (sin huecos que parezcan una suspensión del equipo). */
+    elapse(ms) {
+      for (let left = ms; left > 0; left -= 30_000) {
+        advance(Math.min(30_000, left));
+        intervals.forEach(({ fn }) => fn());
+      }
+    },
 
     /** Importa el app.js real con un grafo de módulos propio de este escenario. */
     load() {
@@ -837,8 +852,7 @@ test(
         await app.click("btnStart");
         await waitFor(() => el("btnCamera").textContent === "Apagar cámara", { what: "cámara encendida" });
 
-        app.advance(FOCUS_MS);
-        app.tick();
+        app.elapse(FOCUS_MS);
 
         assert.equal(el("phaseLabel").textContent, "Descanso");
         assert.equal(el("timerHint").textContent, "descansa y estírate");
@@ -892,8 +906,7 @@ test(
 
       await step("saltar el enfoque no registra ni encola nada (aunque ya haya tiempo acumulado)", async () => {
         // Con tiempo activo (elapsedMs > 0) la única barrera es el `!skipped` de app.js.
-        app.advance(10 * 60_000);
-        app.tick();
+        app.elapse(10 * 60_000);
         assert.equal(el("timerDisplay").textContent, "15:00");
         await app.click("btnSkip");
         assert.equal(el("phaseLabel").textContent, "Descanso");
@@ -920,8 +933,7 @@ test(
         await app.click("btnStart");
         await waitFor(() => el("btnCamera").textContent === "Apagar cámara", { what: "cámara encendida" });
 
-        app.advance(FOCUS_MS);
-        app.tick();
+        app.elapse(FOCUS_MS);
 
         await waitFor(() => postsTo(app, "/api/stats/sessions").length >= 1, { what: "envío de la sesión completada" });
         await settle();
@@ -1267,8 +1279,7 @@ test(
       await step("la cuenta que llega tarde NO se adjunta al bloque ya iniciado: no se encola ni se envía", async () => {
         account.resolveAll(LATE_USER);
         await settle();
-        app.advance(FOCUS_MS);
-        app.tick();
+        app.elapse(FOCUS_MS);
         await settle();
         assert.equal(el("focusDone").textContent, "1");
         assert.equal(el("phaseLabel").textContent, "Descanso");
@@ -1280,8 +1291,7 @@ test(
         await app.click("btnSkip"); // fin del descanso: sesión 2, enfoque parado
         assert.equal(el("phaseLabel").textContent, "Enfoque");
         await pressStart(app);
-        app.advance(FOCUS_MS);
-        app.tick();
+        app.elapse(FOCUS_MS);
         await waitFor(() => postsTo(app, "/api/stats/sessions").length >= 1, { what: "envío de la sesión completada" });
         await settle();
         const posts = postsTo(app, "/api/stats/sessions");
@@ -1309,8 +1319,7 @@ test(
       });
 
       await step("el bloque se asocia a la cuenta y, al completarse, se envía una sola vez", async () => {
-        app.advance(FOCUS_MS);
-        app.tick();
+        app.elapse(FOCUS_MS);
         await waitFor(() => postsTo(app, "/api/stats/sessions").length >= 1, { what: "envío de la sesión completada" });
         await settle();
         const posts = postsTo(app, "/api/stats/sessions");
@@ -1353,13 +1362,44 @@ test(
       assert.equal(startBusy(app), false);
       assert.equal(app.debug.state.timer.running, true);
 
-      app.advance(FOCUS_MS);
-      app.tick();
+      app.elapse(FOCUS_MS);
       await settle();
       assert.equal(el("focusDone").textContent, "1");
       assert.deepEqual(app.fetchCalls, []);
       assert.deepEqual(pendingWrites(app), []);
       assert.deepEqual(app.unhandled, []);
+    });
+
+    await t.test("suspensión del equipo: pausa en el último tick, sin contar el sueño y con aviso", async (sleep) => {
+      const app = await bootApp(sleep, { cdn: "down" });
+      const el = (id) => app.el(id);
+      await pressStart(app);
+      app.elapse(10 * 60_000);
+      app.advance(8 * 3_600_000); // el equipo duerme 8 h
+      app.tick();
+      assert.equal(app.debug.state.timer.running, false);
+      assert.equal(app.debug.state.timer.remaining, FOCUS_MS - 10 * 60_000);
+      assert.equal(el("btnStart").textContent, "Reanudar");
+      assert.equal(el("timerHint").textContent, "en pausa");
+      assert.equal(el("postureMsg").textContent, "Pausado: el equipo estuvo suspendido.");
+    });
+
+    await t.test("pestaña oculta con hueco largo no pausa; visible de nuevo re-arma sin falso positivo", async (hidden) => {
+      const app = await bootApp(hidden, { cdn: "down" });
+      assert.ok(app.documentHandlerCount("visibilitychange") >= 1, "app.js registra visibilitychange");
+      await pressStart(app);
+      app.elapse(5 * 60_000);
+      app.setVisibility("hidden");
+      app.advance(30 * 60_000); // pestaña congelada
+      app.tick();
+      assert.equal(app.debug.state.timer.running, true, "oculta: no se pausa");
+      app.setVisibility("visible");
+      app.tick(); // primer tick tras volver: sin hueco desde que se re-armó
+      assert.equal(app.debug.state.timer.running, true, "visible de nuevo: sin falso positivo");
+      assert.notEqual(app.el("btnStart").textContent, "Reanudar");
+      app.advance(8 * 3_600_000); // ahora sí, suspensión estando visible
+      app.tick();
+      assert.equal(app.debug.state.timer.running, false);
     });
 
     await t.test("restore rechaza: antes del plazo arranca como invitado al instante; después no deja rechazos sin manejar", async (rejects) => {
@@ -1387,8 +1427,7 @@ test(
         account.rejectAll(new Error("clerk caído"));
         await settle();
         assert.deepEqual(app.unhandled, [], "el rechazo tardío ya lo atendió Promise.race");
-        app.advance(FOCUS_MS);
-        app.tick();
+        app.elapse(FOCUS_MS);
         await settle();
         assert.equal(app.el("focusDone").textContent, "1");
         assert.deepEqual(app.fetchCalls, []);
@@ -1531,7 +1570,8 @@ test(
       assert.equal(app.debug.state.timer.running, true);
       assert.equal(el("timerHint").textContent, "en marcha");
 
-      app.advance(FOCUS_MS);
+      app.elapse(FOCUS_MS - 30_000);
+      app.advance(30_000);
       assert.doesNotThrow(() => app.tick(), "el sonido de fin de fase no puede romper el cambio de fase");
       assert.equal(el("phaseLabel").textContent, "Descanso");
       assert.equal(el("focusDone").textContent, "1");

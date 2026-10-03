@@ -14,11 +14,21 @@
 import { parsePublishableKey } from "@clerk/shared/keys";
 
 // MediaPipe Tasks Vision: the PoseLandmarker module (app.js `import`) and its
-// wasm runtime/model glue are both fetched from jsDelivr.
-const MEDIAPIPE_CDN = "https://cdn.jsdelivr.net";
+// wasm runtime/glue (posture-monitor.js WASM_BASE = <package>/wasm) are both
+// fetched from jsDelivr, pinned to the exact package version.
+//
+// CSP path matching: a source whose path ends in "/" matches that prefix and
+// everything below it; any other path must match exactly. app.js imports the
+// bare package URL (no trailing slash, jsDelivr resolves it to the entry file),
+// so that exact URL gets its own entry in script-src. Paths are only checked
+// against the URL first requested: after a redirect only the host counts, so
+// the pin does not stop a redirect, but it does keep every other package on the
+// CDN out of reach for an injected script.
+const MEDIAPIPE_PACKAGE_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MEDIAPIPE_CDN_PREFIX = `${MEDIAPIPE_PACKAGE_URL}/`;
 // The actual pose_landmarker_lite model file is hosted on Google Cloud
-// Storage and pulled with `fetch()` from app.js (MODEL_URL).
-const MEDIAPIPE_MODEL_HOST = "https://storage.googleapis.com";
+// Storage and pulled with `fetch()` from posture-monitor.js (MODEL_URL).
+const MEDIAPIPE_MODEL_PREFIX = "https://storage.googleapis.com/mediapipe-models/";
 // clerk-js dynamically injects a Cloudflare Turnstile <script> for bot
 // protection (see node_modules/@clerk/clerk-js/dist/clerk.mjs, "challenges.
 // cloudflare.com/turnstile/v0/api.js") and Turnstile renders its widget in an
@@ -101,8 +111,14 @@ function buildDirectives({ includeClerkDevHosts, clerkFrontendOrigin }) {
   // No 'unsafe-inline': every script is a same-origin file. The theme
   // bootstrap that used to be inline in the <head> lives in /theme-init.js and
   // loads synchronously, so it still runs before the first paint.
-  const scriptSrc = ["'self'", MEDIAPIPE_CDN, CLERK_TURNSTILE_HOST, "'wasm-unsafe-eval'"];
-  const connectSrc = ["'self'", MEDIAPIPE_CDN, MEDIAPIPE_MODEL_HOST, CLERK_TELEMETRY_HOST];
+  const scriptSrc = [
+    "'self'",
+    MEDIAPIPE_PACKAGE_URL,
+    MEDIAPIPE_CDN_PREFIX,
+    CLERK_TURNSTILE_HOST,
+    "'wasm-unsafe-eval'",
+  ];
+  const connectSrc = ["'self'", MEDIAPIPE_CDN_PREFIX, MEDIAPIPE_MODEL_PREFIX, CLERK_TELEMETRY_HOST];
   const frameSrc = [CLERK_TURNSTILE_HOST];
 
   if (includeClerkDevHosts) {

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs 5000",
+    "start:prod": "node server.mjs 5000 --production",
     "test": "node --test tests/*.test.mjs",
     "test:ui": "playwright test"
   },

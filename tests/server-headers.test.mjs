@@ -137,11 +137,35 @@ for (const isProduction of [true, false]) {
 
     // MediaPipe: el módulo y el runtime wasm vienen de jsDelivr, el modelo de storage.googleapis.com.
     assert.ok(scriptSrc.includes("'wasm-unsafe-eval'"));
-    assert.ok(scriptSrc.includes(new URL(WASM_BASE).origin), "script-src debe permitir el origen de WASM_BASE");
-    assert.ok(connectSrc.includes(new URL(WASM_BASE).origin), "connect-src debe permitir el origen de WASM_BASE");
-    assert.ok(connectSrc.includes(new URL(MODEL_URL).origin), "connect-src debe permitir el origen de MODEL_URL");
+    // Fijado por prefijo de ruta (no el host entero): WASM_BASE y MODEL_URL caen bajo ellos.
+    const cdnPrefix = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/";
+    const modelPrefix = "https://storage.googleapis.com/mediapipe-models/";
+    assert.ok(scriptSrc.includes(cdnPrefix));
+    assert.ok(connectSrc.includes(cdnPrefix));
+    assert.ok(connectSrc.includes(modelPrefix));
+    assert.ok(cspAllowsUrl(scriptSrc, `${WASM_BASE}/vision_wasm_internal.js`), "el loader wasm debe caer en script-src");
+    assert.ok(cspAllowsUrl(connectSrc, `${WASM_BASE}/vision_wasm_internal.wasm`), "el .wasm debe caer en connect-src");
+    assert.ok(cspAllowsUrl(connectSrc, MODEL_URL), "MODEL_URL debe caer en connect-src");
+    // Sin el host entero, cualquier otro paquete del CDN o bucket de Google quedaria permitido.
+    for (const host of ["https://cdn.jsdelivr.net", "https://storage.googleapis.com"]) {
+      assert.ok(!scriptSrc.includes(host) && !connectSrc.includes(host), `${host} no debe permitirse entero`);
+    }
+    assert.ok(!cspAllowsUrl(scriptSrc, "https://cdn.jsdelivr.net/npm/otro-paquete@1.0.0/x.js"));
+    assert.ok(!cspAllowsUrl(connectSrc, "https://storage.googleapis.com/otro-bucket/x"));
     assert.ok(directive(csp, "worker-src").includes("blob:"));
     assert.deepEqual(directive(csp, "default-src"), ["'none'"]);
+  });
+}
+
+/** Coincidencia de ruta de CSP: con "/" final es prefijo, si no, exacta; el origen siempre debe coincidir. */
+function cspAllowsUrl(sources, url) {
+  const target = new URL(url);
+  return sources.some((source) => {
+    if (!source.startsWith("https://")) return false;
+    const src = new URL(source);
+    if (src.origin !== target.origin) return false;
+    if (src.pathname === "/" && !source.endsWith("/")) return true; // fuente de solo origen
+    return src.pathname.endsWith("/") ? target.pathname.startsWith(src.pathname) : target.pathname === src.pathname;
   });
 }
 
@@ -150,7 +174,7 @@ test("cada import() remoto de app.js cae en el script-src que se aplica en produ
   assert.ok(remote.length >= 1, "app.js ya no importa MediaPipe por CDN: actualiza este test y la CSP");
   const scriptSrc = directive(buildContentSecurityPolicy({ isProduction: true }), "script-src");
   for (const url of remote) {
-    assert.ok(scriptSrc.includes(new URL(url).origin), `${url} no está permitido por script-src`);
+    assert.ok(cspAllowsUrl(scriptSrc, url), `${url} no está permitido por script-src`);
   }
 });
 
@@ -274,7 +298,7 @@ test("buildContentSecurityPolicy: el origen de Clerk va solo a connect-src, y se
       assert.ok(!directive(csp, name).includes(origin), `${name} no debe llevar el origen`);
     }
     // El resto de connect-src se conserva.
-    for (const kept of ["'self'", "https://cdn.jsdelivr.net", "https://storage.googleapis.com", "https://clerk-telemetry.com"]) {
+    for (const kept of ["'self'", "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/", "https://storage.googleapis.com/mediapipe-models/", "https://clerk-telemetry.com"]) {
       assert.ok(directive(csp, "connect-src").includes(kept), kept);
     }
     assert.ok(!buildContentSecurityPolicy({ isProduction }).includes(origin));

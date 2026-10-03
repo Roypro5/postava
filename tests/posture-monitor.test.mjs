@@ -1294,3 +1294,58 @@ test("el código fuente no usa DOM, window, fetch ni otras vías de red y solo i
   const imports = [...raw.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(imports, ["./overlay.js", "./posture.js"]);
 });
+
+/* ── Estado transitorio entre bloques de enfoque ───────────────────────── */
+
+test("resetSession limpia el tramo malo, el aviso y la racha buena", () => {
+  const s = setup({ settings: { delaySeconds: 5 } });
+  const st = s.monitor.state;
+  st.baseline = { ...BASE };
+  st.lastFrameAt = s.clock.t;
+  for (let i = 0; i < 51; i++) s.step(BAD_NECK);
+  assert.equal(st.alerting, true);
+  const clears = s.of("clear").length;
+
+  s.monitor.resetSession();
+  assert.equal(st.badSince, null);
+  assert.equal(st.goodStreak, 0);
+  assert.equal(st.lastAlertAt, 0);
+  assert.equal(st.alerting, false);
+  assert.equal(st.showingIssue, false);
+  assert.equal(s.of("clear").length, clears + 1);
+});
+
+test("un tramo malo viejo no dispara el aviso al instante en el siguiente bloque de enfoque", () => {
+  const s = setup({ settings: { delaySeconds: 5 } });
+  const st = s.monitor.state;
+  st.baseline = { ...BASE };
+  st.lastFrameAt = s.clock.t;
+  for (let i = 0; i < 20; i++) s.step(BAD_NECK); // badSince fijado, aún sin aviso
+
+  s.timer.phase = "break"; // acaba el enfoque
+  s.step(BAD_NECK);
+  assert.equal(st.badSince, null, "fuera de enfoque se descarta el tramo malo");
+
+  s.clock.t += 600_000; // pasa un descanso largo
+  s.timer.phase = "focus";
+  s.step(BAD_NECK);
+  assert.equal(s.of("alert").length, 0, "el retardo se respeta desde cero");
+  assert.equal(st.alerting, false);
+});
+
+test("stop() y start() descartan el estado transitorio", () => {
+  const s = setup();
+  const st = s.monitor.state;
+  st.badSince = 123;
+  st.goodStreak = 400;
+  st.lastAlertAt = 99;
+  st.showingIssue = true;
+  s.monitor.stop();
+  assert.equal(st.badSince, null);
+  assert.equal(st.goodStreak, 0);
+  assert.equal(st.lastAlertAt, 0);
+  assert.equal(st.showingIssue, false);
+  st.badSince = 5;
+  s.monitor.start();
+  assert.equal(st.badSince, null);
+});
