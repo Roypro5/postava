@@ -15,6 +15,7 @@ import { bindFocusAccount } from "./stats-session.js";
 import { createStatsQueue } from "./stats-queue.js";
 import { createFocusStats } from "./focus-stats.js";
 import { createTimer } from "./timer.js";
+import { createHeartbeat } from "./heartbeat.js";
 
 /* Render puro de la interfaz (badge, mensaje, cronómetro, chips…): ver ui.js.
    Se desestructura para conservar los nombres en los puntos de llamada. */
@@ -206,7 +207,7 @@ const statsQueue = createStatsQueue({
     if (event.type === "saving") {
       ui.showStatsSaving(event.message);
     } else if (event.type === "error") {
-      ui.showStatsSaveError(event.message, () => statsQueue.retry());
+      ui.showStatsSaveError(event.message, event.rejected ? null : () => statsQueue.retry());
     } else if (event.type === "clear") {
       ui.clearStatsSaveError();
     }
@@ -603,12 +604,26 @@ ui.initRing();
 
 timer.setPhase("focus");
 setBadge("idle", "Sin monitorizar");
+// Latido desde un Worker: con la pestaña oculta setInterval se limita a ~1/min y el
+// aviso de fin de fase llegaría tarde. Si el Worker no está disponible, cae a setInterval.
+const heartbeat = createHeartbeat({
+  createWorker: () => new Worker(new URL("./tick-worker.js", import.meta.url)),
+  setInterval: (fn, ms) => setInterval(fn, ms),
+  clearInterval: (id) => clearInterval(id),
+  onBeat: () => timer.tick(),
+});
 // La suspensión solo se vigila con la página visible: oculta, un hueco largo
 // puede ser throttling/congelado de pestaña y no debe pausar el Pomodoro.
-const syncWatch = () => timer.setSuspendWatch(document.visibilityState === "visible");
-document.addEventListener("visibilitychange", syncWatch);
-syncWatch();
-setInterval(() => timer.tick(), 250);
+// Orden: primero setSuspendWatch (re-arma la referencia) y después tick(), para que
+// el tramo oculto no cuente como hueco; tick() ya repinta título y aro (onTick).
+const syncVisibility = () => {
+  const hidden = document.visibilityState !== "visible";
+  timer.setSuspendWatch(!hidden);
+  timer.tick();
+  heartbeat.setRate(hidden ? 1000 : 250);
+};
+document.addEventListener("visibilitychange", syncVisibility);
+syncVisibility();
 updateStats(true);
 statsQueue.resumePending();
 monitor.initEngine();

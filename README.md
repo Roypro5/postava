@@ -140,6 +140,24 @@ presencia** firmada (`server/session-cookie.mjs`), creada al marcar
 basta con una de las dos. El ID de usuario para guardar o leer estadísticas
 sale siempre de Clerk en el servidor, nunca del navegador.
 
+**Límite diario y privacidad de los datos**
+
+- Cada cuenta guarda como máximo **200 sesiones y 1440 minutos sumados por día
+  UTC**. Pasado el tope, `POST /api/stats/sessions` responde
+  `422 DAILY_LIMIT_REACHED` y el Pomodoro avisa de que esa sesión no se guardó;
+  un reintento de una sesión ya guardada sigue dando 200. El tope es blando
+  (sin bloqueo), ver [`db/README.md`](db/README.md).
+- En `/stats`, la sección **Privacidad** permite «Borrar todas mis estadísticas»
+  (`DELETE /api/stats`, con confirmación, Clerk + cookie de presencia y
+  5 peticiones/minuto). El Pomodoro sigue funcionando igual.
+- **Retención:** la purga es manual. `psql -f db/purge-old.sql` borra las sesiones
+  de más de 400 días. Para los datos de un usuario de Clerk eliminado, usa
+  `db/delete-user.sql` (un webhook de Clerk que lo automatice queda para más
+  adelante).
+- **Esquema:** `db/schema.sql` y `db/migrations/` (deducidos del código,
+  pendientes de conciliar con `pg_dump` de la BD real) se aplican a mano; el
+  servidor nunca ejecuta DDL.
+
 ## Variables de entorno
 
 | Variable | Para qué sirve |
@@ -218,6 +236,11 @@ encuentra ninguno, hay que instalar el de Playwright con
   pestaña en segundo plano, cuando detecta mala postura. Con la pestaña en
   segundo plano el navegador ralentiza la detección, así que los avisos de
   postura pueden tardar más en llegar.
+- Uso con la pestaña en segundo plano: el temporizador late desde un Web Worker
+  (`tick-worker.js`), así que el fin de fase suena y notifica a tiempo aunque la
+  pestaña esté oculta (si el Worker no está disponible, cae a `setInterval`, que el
+  navegador puede ralentizar a ~1 por minuto). Se recomienda activar las
+  notificaciones del sistema para enterarte del aviso sin mirar la pestaña.
 
 Atajos: <kbd>Espacio</kbd> iniciar/pausar · <kbd>C</kbd> calibrar.
 
@@ -253,6 +276,7 @@ muestra el diagrama de más abajo.
 | `styles.css` | sistema de interfaz (claro/oscuro automático) |
 | `login.css` / `stats.css` | estilos de las pantallas de acceso y de estadísticas |
 | `app.js` | punto de entrada y cableado: crea los módulos, conecta sus callbacks (interfaz, sonido, notificaciones, estadísticas, ajustes) y registra los eventos; solo orquesta, sin lógica de dominio (fases, postura, estadísticas) |
+| `heartbeat.js` / `tick-worker.js` | latido del temporizador: `heartbeat.js` (sin DOM, todo inyectable) usa el Worker `tick-worker.js` y cae a `setInterval` si falla |
 | `dom.js` | referencias a los elementos del DOM (`el`, `ctx`), sin lógica; solo lo importa `app.js` |
 | `ui.js` | render puro de la interfaz principal (badge, mensajes, cronómetro y aro, chips, estadísticas de sesión, avisos); recibe `el` inyectado y no conoce timer, cámara, postura, estadísticas ni red |
 | `timer.js` | máquina de fases enfoque/descanso basada en `endAt`; no conoce DOM, cámara, sonido, estadísticas ni red: solo callbacks |
@@ -275,6 +299,7 @@ muestra el diagrama de más abajo.
 | `stats.html` / `stats.js` | pantalla de estadísticas privadas por cuenta |
 | `auth-adapter.js` | adaptador de Clerk para el cliente; se empaqueta con esbuild al arrancar el servidor |
 | `server.mjs` | servidor Express: allowlist de estáticos, proxy de Clerk, cookie de presencia y API de sesión/estadísticas |
+| `db/` | `schema.sql`, `migrations/` (Up/Down), `purge-old.sql`, `delete-user.sql` y `README.md` con cómo aplicarlos a mano (nunca al arrancar) |
 | `server/` | `session-cookie.mjs` (cookie de presencia firmada), `stats-store.mjs` (estadísticas en PostgreSQL), `security-headers.mjs` (cabeceras de seguridad y CSP), `rate-limit.mjs` (limitador de peticiones en memoria), `middlewares/` (proxy de Clerk) |
 | `tests/` | pruebas `node --test` y especificaciones de Playwright |
 

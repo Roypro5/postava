@@ -132,6 +132,24 @@
           <p>Las estadísticas se guardan de forma privada en tu cuenta cuando completas un bloque de enfoque. Solo se envían agregados de duración y postura; el vídeo y los puntos de referencia permanecen en tu dispositivo.</p>
         </div>
       </details>
+
+      <section class="card privacy-card" aria-labelledby="privacyTitle">
+        <header class="section-head">
+          <div><p class="eyebrow">Tus datos</p><h2 id="privacyTitle">Privacidad</h2><p class="section-note">Elimina de forma permanente todas las sesiones guardadas en tu cuenta.</p></div>
+        </header>
+        <button id="deleteStatsOpen" class="stats-danger" type="button" disabled>Borrar todas mis estadísticas</button>
+        <p id="deleteStatsStatus" class="privacy-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <dialog id="deleteStatsDialog" class="confirm-dialog" aria-labelledby="deleteStatsDialogTitle" aria-describedby="deleteStatsDialogText">
+        <h2 id="deleteStatsDialogTitle">¿Borrar todas tus estadísticas?</h2>
+        <p id="deleteStatsDialogText">No se puede deshacer; el Pomodoro sigue funcionando sin cambios.</p>
+        <p id="deleteStatsError" class="privacy-status error" role="status" aria-live="polite"></p>
+        <div class="confirm-actions">
+          <button id="deleteStatsCancel" class="stats-retry" type="button" autofocus>Cancelar</button>
+          <button id="deleteStatsConfirm" class="stats-danger" type="button">Borrar</button>
+        </div>
+      </dialog>
     </main>
     <footer class="footer"><p>Estadísticas privadas de tus sesiones. No son una evaluación médica.</p></footer>
   </div>

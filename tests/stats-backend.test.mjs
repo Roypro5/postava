@@ -115,9 +115,9 @@ test("store scopes every query by authenticated user and binds values", async ()
       if (text.includes("INSERT INTO posture_stats_sessions")) {
         const [userId, sessionId] = values;
         const key = `${userId}:${sessionId}`;
-        if (stored.has(key)) return { rowCount: 0, rows: [] };
+        if (stored.has(key)) return { rows: [{ inserted: false, existed: true }] };
         stored.set(key, values);
-        return { rowCount: 1, rows: [{ session_id: sessionId }] };
+        return { rows: [{ inserted: true, existed: false }] };
       }
       const userId = values[0];
       return { rows: userId === "user-a" ? [{
@@ -133,22 +133,27 @@ test("store scopes every query by authenticated user and binds values", async ()
   const store = createStatsStore(pool);
   const validSession = validateSessionPayload(sessionBody());
 
-  assert.equal(await store.saveSession("user-a", validSession), true);
-  assert.equal(await store.saveSession("user-a", validSession), false);
+  assert.equal(await store.saveSession("user-a", validSession), "inserted");
+  assert.equal(await store.saveSession("user-a", validSession), "duplicate");
   assert.equal((await store.getStats("user-a")).days.length, 1);
   assert.deepEqual(await store.getStats("user-b"), {
     days: [],
     habitDistribution: [],
   });
   await store.getStats("user-a", 30);
-  const reads = queries.filter(({ text }) => text.includes("FROM posture_stats_sessions"));
+  const reads = queries.filter(({ text }) => text.startsWith("SELECT started_at"));
   assert.deepEqual(reads.map(({ values }) => values[1]), [7, 7, 30]);
+  assert.deepEqual(reads.map(({ values }) => values[2]), [1401, 1401, 6001]);
+  assert.match(reads[0].text, /LIMIT \$3/);
   assert.match(reads[0].text, /date_trunc\('day'/);
 
   assert.ok(queries.every(({ values }) => values[0] === "user-a" || values[0] === "user-b"));
   const insert = queries.find(({ text }) => text.includes("INSERT INTO"));
   assert.match(insert.text, /ON CONFLICT \(user_id, session_id\) DO NOTHING/);
   assert.match(insert.text, /\$7::jsonb/);
+  assert.match(insert.text, /day\.n < \$10::int/);
+  assert.match(insert.text, /day\.m \+ \$4::int <= \$11::int/);
+  assert.deepEqual(insert.values.slice(9), [200, 1440]);
   assert.equal(insert.values[1], validSession.id);
   assert.deepEqual(JSON.parse(insert.values[6]), validSession.issues);
 });
@@ -203,7 +208,7 @@ test("two authenticated handler identities cannot read or retry each other's com
       if (text.includes("INSERT INTO posture_stats_sessions")) {
         const [userId, id, startedAt, durationMinutes, goodMs, badMs, issues, issuesUnit] = values;
         const key = `${userId}:${id}`;
-        if (rows.has(key)) return { rowCount: 0, rows: [] };
+        if (rows.has(key)) return { rows: [{ inserted: false, existed: true }] };
         rows.set(key, {
           userId,
           started_at: startedAt,
@@ -213,7 +218,7 @@ test("two authenticated handler identities cannot read or retry each other's com
           issues: JSON.parse(issues),
           issues_unit: issuesUnit,
         });
-        return { rowCount: 1, rows: [{ session_id: id }] };
+        return { rows: [{ inserted: true, existed: false }] };
       }
       assert.match(text, /WHERE user_id = \$1/);
       return { rows: [...rows.values()].filter((row) => row.userId === values[0]) };

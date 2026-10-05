@@ -76,7 +76,11 @@ function fakeStore() {
     },
     async saveSession(userId, session) {
       calls.push(["saveSession", userId, session.id]);
-      return true;
+      return "inserted";
+    },
+    async deleteAll(userId) {
+      calls.push(["deleteAll", userId]);
+      return 3;
     },
   };
 }
@@ -134,6 +138,7 @@ const PRIVATE_API = [
   ["GET", "/api/stats"],
   ["GET", "/api/stats?days=30"],
   ["POST", "/api/stats/sessions"],
+  ["DELETE", "/api/stats"],
 ];
 
 function privateRequest(port, [method, path], headers) {
@@ -141,7 +146,7 @@ function privateRequest(port, [method, path], headers) {
   return request(port, path, {
     method,
     headers: same,
-    body: method === "POST" ? JSON.stringify(sessionPayload()) : undefined,
+    body: method === "POST" ? JSON.stringify(sessionPayload()) : method === "DELETE" ? JSON.stringify({ confirm: "DELETE_ALL_STATS" }) : undefined,
   });
 }
 
@@ -385,5 +390,28 @@ test("una cabecera Authorization ajena no rompe una sesión de cookies válida (
       assert.equal(res.status, 200, authorization);
       assert.deepEqual(JSON.parse(res.body), { userId: SUB });
     }
+  });
+});
+
+test("DELETE /api/stats: borra solo al usuario del JWT verificado (ignora el body), exige confirmación y limita a 5 por minuto", async () => {
+  await withApp(async ({ port, store }) => {
+    const headers = { cookie: cookies(port), origin: `http://127.0.0.1:${port}`, "content-type": "application/json" };
+    const del = (payload, extra = {}) => request(port, "/api/stats", { method: "DELETE", headers: { ...headers, ...extra }, body: JSON.stringify(payload) });
+
+    assert.equal((await del({ confirm: "DELETE_ALL_STATS" }, { origin: "https://evil.example" })).status, 403);
+    assert.equal((await del({})).status, 400);
+    assert.equal((await del({ confirm: "DELETE_ALL_STATS", userId: "user_otraCuenta123" })).status, 400);
+    assert.deepEqual(store.calls, [], "nada llegó al almacén sin confirmación válida");
+
+    const ok = await del({ confirm: "DELETE_ALL_STATS" });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(JSON.parse(ok.body), { deleted: 3 });
+    assert.deepEqual(store.calls, [["deleteAll", SUB]]);
+
+    // Ya van 4 peticiones contadas (403, 2 x 400 y la buena): la 5ª entra y la 6ª es 429.
+    assert.equal((await del({ confirm: "DELETE_ALL_STATS" })).status, 200);
+    const limited = await del({ confirm: "DELETE_ALL_STATS" });
+    assert.equal(limited.status, 429);
+    assert.ok(limited.headers["retry-after"]);
   });
 });

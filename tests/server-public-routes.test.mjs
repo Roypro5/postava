@@ -75,7 +75,7 @@ function fakeStore() {
     },
     async saveSession(userId, session) {
       calls.push(["saveSession", userId, session.id]);
-      return true;
+      return "inserted";
     },
   };
 }
@@ -189,6 +189,7 @@ const PRIVATE_ROUTES = new Set([
   "GET /api/account",
   "GET /api/stats",
   "POST /api/stats/sessions",
+  "DELETE /api/stats",
   "GET /stats",
   "GET /stats.html",
 ]);

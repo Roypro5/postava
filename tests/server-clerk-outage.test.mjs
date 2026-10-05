@@ -82,7 +82,7 @@ async function withApp(run) {
   const warnings = [];
   const originalWarn = console.warn;
   console.warn = (...args) => warnings.push(args.join(" "));
-  const store = { async getStats() { return { days: [], habitDistribution: [] }; }, async saveSession() { return true; } };
+  const store = { async getStats() { return { days: [], habitDistribution: [] }; }, async saveSession() { return "inserted"; } };
   const server = createApp({ store }).listen(0, "127.0.0.1");
   await once(server, "listening");
   try {

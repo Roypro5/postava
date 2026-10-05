@@ -26,6 +26,7 @@ const AUTH_STUB = `data:text/javascript,${encodeURIComponent(`
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "/assets/auth-adapter.bundle.js") return { url: AUTH_STUB, format: "module", shortCircuit: true };
+    if (specifier === "/stats-queue.js") return { url: root("stats-queue.js").href, format: "module", shortCircuit: true };
     if (specifier === "/stats-math.js") return { url: root("stats-math.js").href, format: "module", shortCircuit: true };
     return nextResolve(specifier, context);
   },
@@ -375,4 +376,14 @@ describe("tooltips .info (WCAG 1.4.13)", () => {
     assert.ok(css.includes(".info[data-tip]::before { content:\"\"; position:absolute; inset:-13px;"));
     assert.ok(css.includes("bottom:calc(100% + 9px)"));
   });
+});
+
+test("stats.html: sección Privacidad con <dialog> nativo, Cancelar con foco inicial y sin handlers ni estilos en línea", () => {
+  const html = read("stats.html");
+  const dialog = html.slice(html.indexOf("<dialog"), html.indexOf("</dialog>"));
+  assert.match(dialog, /id="deleteStatsDialog"[^>]*aria-labelledby=/);
+  assert.match(dialog, /id="deleteStatsCancel"[^>]*autofocus/);
+  assert.ok(dialog.includes("No se puede deshacer; el Pomodoro sigue funcionando sin cambios"));
+  assert.ok(html.includes("Borrar todas mis estadísticas"));
+  assert.doesNotMatch(html, /\son[a-z]+=|\sstyle=/);
 });

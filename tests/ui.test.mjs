@@ -533,3 +533,14 @@ test("styles.css define .stats-save-status y .stats-save-retry sin !important", 
   }
   assert.ok(!status.includes("!important") && !retry.includes("!important"), "sin !important");
 });
+
+test("estado de guardado: sin onRetry (aviso informativo) no se crea el botón Reintentar", () => {
+  const actions = node({ after() {} });
+  const { doc, ui } = setup({}, { actions });
+  ui.showStatsSaveError("Se alcanzó el límite diario", null);
+  assert.equal(doc.created.filter((n) => n.tag === "button").length, 0);
+  const status = doc.created.find((n) => n.tag === "p");
+  assert.equal(status.children[0].textContent, "Se alcanzó el límite diario");
+  assert.equal(status.children.length, 1);
+  assert.equal(status.hidden, false);
+});

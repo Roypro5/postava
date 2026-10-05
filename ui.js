@@ -169,12 +169,15 @@ export function createUi(el, { doc = globalThis.document } = {}) {
     const text = doc.createElement("span");
     text.textContent = message;
     status.append(text);
-    const retry = doc.createElement("button");
-    retry.type = "button";
-    retry.className = "stats-save-retry";
-    retry.textContent = "Reintentar";
-    retry.addEventListener("click", onRetry);
-    status.append(" ", retry);
+    // Sin onRetry (aviso informativo, p. ej. límite diario) no hay botón.
+    if (onRetry) {
+      const retry = doc.createElement("button");
+      retry.type = "button";
+      retry.className = "stats-save-retry";
+      retry.textContent = "Reintentar";
+      retry.addEventListener("click", onRetry);
+      status.append(" ", retry);
+    }
     status.hidden = false;
   }
 

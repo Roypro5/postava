@@ -376,6 +376,7 @@ export function createApp({ store = statsStore } = {}) {
     // the client asks once per page load, so 60/min is far above real use.
     sessionRead: createRateLimiter({ windowMs: 60_000, max: 60, keyFn: rateLimitKey }),
     statsRead: createRateLimiter({ windowMs: 60_000, max: 60, keyFn: rateLimitKey }),
+    statsDelete: createRateLimiter({ windowMs: 60_000, max: 5, keyFn: rateLimitKey }),
   };
   for (const limiter of Object.values(limiters)) limiter.startCleanup();
 
@@ -444,6 +445,7 @@ export function createApp({ store = statsStore } = {}) {
   });
   app.get("/api/stats", withClerkForApi, limiters.statsRead.middleware, statsHandlers.get);
   app.post("/api/stats/sessions", withClerkForApi, limiters.statsSessionWrite.middleware, statsHandlers.post);
+  app.delete("/api/stats", withClerkForApi, limiters.statsDelete.middleware, statsHandlers.deleteAll);
 
   const publicFiles = new Map([
     ["/index.html", "index.html"],
@@ -454,6 +456,8 @@ export function createApp({ store = statsStore } = {}) {
     ["/stats-queue.js", "stats-queue.js"],
     ["/focus-stats.js", "focus-stats.js"],
     ["/timer.js", "timer.js"],
+    ["/heartbeat.js", "heartbeat.js"],
+    ["/tick-worker.js", "tick-worker.js"],
     ["/app.js", "app.js"],
     ["/styles.css", "styles.css"],
     ["/theme.js", "theme.js"],

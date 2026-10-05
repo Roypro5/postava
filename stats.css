@@ -108,3 +108,18 @@
 @media(max-width:820px){.daily-grid{grid-template-columns:1fr 1fr}.score-panel{grid-row:span 2}.content-grid{grid-template-columns:1fr}.fatigue-map{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:620px){.stats-heading{display:block}.period-control{width:max-content;margin-top:19px}.stats-heading h1{font-size:2.8rem}.daily-grid{grid-template-columns:1fr}.score-panel{grid-row:auto}.daily-bars{height:170px;padding-inline:0}.daily-column i{width:20px}.session-row{grid-template-columns:7px 1fr auto}.session-duration{display:none}.stats-nav .nav-tagline,.stats-account .account-name{display:none}.stats-account{margin-left:auto}.stats-nav{gap:7px}.stats-nav>.nav-login{display:none}}
 @media(max-width:420px){.stats-shell{--shell:calc(100% - 28px)}.card{padding:21px}.fatigue-cell{min-height:80px;padding:8px}.fatigue-cell small{font-size:.6rem}.score-number strong{font-size:4.2rem}}
+/* Privacidad: borrado de estadísticas (botón + <dialog> nativo, sin estilos en línea por la CSP) */
+.privacy-card { margin-top:14px; }
+.stats-danger { min-height:44px; margin-top:16px; padding:8px 16px; border:1px solid color-mix(in srgb,var(--bad) 55%,var(--line)); border-radius:var(--r-pill); background:transparent; color:var(--bad-ink); font:700 .78rem var(--font-display); cursor:pointer; }
+.stats-danger:hover { background:var(--bad-soft); }
+.stats-danger:disabled,.stats-retry:disabled { opacity:.5; cursor:not-allowed; }
+.stats-danger:focus-visible,.stats-retry:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+.privacy-status:empty { margin:0; }
+.privacy-status { margin:12px 0 0; color:var(--muted); font-size:.8rem; }
+.privacy-status.error { color:var(--bad-ink); }
+.confirm-dialog { max-width:min(420px,calc(100vw - 32px)); padding:24px; border:1px solid var(--line); border-radius:var(--r-l); background:var(--surface); color:var(--ink); }
+.confirm-dialog::backdrop { background:rgba(0,0,0,.45); }
+.confirm-dialog h2 { margin:0 0 10px; font-size:1.05rem; }
+.confirm-dialog p { margin:0; color:var(--muted); font-size:.85rem; }
+.confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+.confirm-actions .stats-retry,.confirm-actions .stats-danger { margin:0; }

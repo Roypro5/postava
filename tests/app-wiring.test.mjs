@@ -99,8 +99,9 @@ const ELEMENT_DEFAULTS = {
  *  - loadAuth: () => Promise<adapter>, sustituye a loadAuth() (por defecto devuelve { restore }).
  *  - storage: entradas iniciales de localStorage ({ clave: valor en texto }).
  *  - audioFails: `new AudioContext()` lanza (política del navegador, demasiados contextos...).
+ *  - worker:  instala un `Worker` falso (si no, `new Worker` lanza y el latido usa setInterval).
  */
-function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, storage: initialStorage = {}, audioFails = false } = {}) {
+function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, storage: initialStorage = {}, audioFails = false, worker = false } = {}) {
   const runId = `r${++runCounter}`;
   const tag = `?wiring=${runId}`;
   const undo = [];
@@ -155,10 +156,32 @@ function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, st
     rafs.pending.delete(id);
   });
   const intervals = [];
+  let intervalIds = 0;
   setGlobal("setInterval", (fn, ms) => {
-    intervals.push({ fn, ms });
-    return intervals.length;
+    intervals.push({ fn, ms, id: ++intervalIds });
+    return intervalIds;
   });
+  setGlobal("clearInterval", (id) => {
+    const index = intervals.findIndex((interval) => interval.id === id);
+    if (index !== -1) intervals.splice(index, 1);
+  });
+  /* Worker falso (opción `worker`): sin él, `new Worker` lanza ReferenceError y el latido cae a setInterval. */
+  const workers = [];
+  if (worker) {
+    setGlobal("Worker", class {
+      constructor(url, options) {
+        this.url = String(url);
+        this.options = options;
+        this.messages = [];
+        this.terminated = false;
+        workers.push(this);
+      }
+      postMessage(message) { this.messages.push(message); }
+      terminate() { this.terminated = true; }
+      /** Un latido del worker (el reloj lo mueve `advance`). */
+      beat() { this.onmessage?.({ data: 0 }); }
+    });
+  }
 
   /* DOM falso con la semántica del navegador que importa: value/textContent se
      coaccionan a string (syncChips compara dataset.minutes con focusMins.value). */
@@ -390,6 +413,7 @@ function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, st
     advance,
     rafs,
     intervals,
+    workers,
     timeouts,
     cdnGate,
     authCalls,
@@ -1400,6 +1424,61 @@ test(
       app.advance(8 * 3_600_000); // ahora sí, suspensión estando visible
       app.tick();
       assert.equal(app.debug.state.timer.running, false);
+    });
+
+    await t.test("latido con Worker: cadencia 250/1000 según visibilidad, tick inmediato al volver y sin falso suspend", async (beat) => {
+      const app = await bootApp(beat, { cdn: "down", worker: true });
+      const el = (id) => app.el(id);
+      assert.equal(app.workers.length, 1);
+      assert.match(app.workers[0].url, /tick-worker\.js$/);
+      assert.deepEqual(app.intervals, [], "con Worker no hay setInterval");
+      assert.deepEqual(app.workers[0].messages.at(-1), { ms: 250 });
+
+      await pressStart(app);
+      app.workers[0].beat(); // un latido del worker mueve el temporizador
+      app.setVisibility("hidden");
+      assert.deepEqual(app.workers[0].messages.at(-1), { ms: 1000 });
+
+      app.advance(30 * 60_000); // 30 min oculta, con latidos solo cada 1 s
+      app.workers[0].beat();
+      assert.equal(app.debug.state.timer.running, true, "oculta: no se pausa");
+      assert.equal(el("timerDisplay").textContent, "05:00", "la fase terminó estando oculta");
+      assert.equal(el("phaseLabel").textContent, "Descanso");
+      assert.equal(app.notes.at(-1)?.options.tag, "postava-phase", "avisa en la pestaña oculta");
+
+      app.advance(5_000);
+      app.setVisibility("visible");
+      assert.deepEqual(app.workers[0].messages.at(-1), { ms: 250 });
+      assert.equal(app.debug.state.timer.running, true, "el descanso sigue en marcha, sin falso suspend");
+      assert.equal(el("timerDisplay").textContent, "04:55", "el tick al volver cuenta el tiempo real del descanso");
+      assert.deepEqual(app.unhandled, []);
+    });
+
+    await t.test("visible de nuevo repinta al instante (sin esperar al siguiente latido) y no cuenta el tramo oculto como hueco", async (repaint) => {
+      const app = await bootApp(repaint, { cdn: "down", worker: true });
+      const el = (id) => app.el(id);
+      await pressStart(app);
+      app.elapse(60_000);
+      app.setVisibility("hidden");
+      app.advance(10 * 60_000); // sin latidos (pestaña congelada)
+      app.setVisibility("visible");
+      assert.equal(app.debug.state.timer.running, true, "sin falso suspend");
+      assert.equal(el("timerDisplay").textContent, "14:00", "repintado en el propio visibilitychange");
+      assert.equal(app.document.title, "14:00 · Enfoque · Postava");
+      assert.notEqual(el("btnStart").textContent, "Reanudar");
+    });
+
+    await t.test("Worker no disponible: el latido cae a setInterval y el temporizador avanza", async (fallback) => {
+      const app = await bootApp(fallback, { cdn: "down" });
+      assert.deepEqual(app.intervals.map((i) => i.ms), [250]);
+      app.setVisibility("hidden");
+      assert.deepEqual(app.intervals.map((i) => i.ms), [1000], "cadencia de reserva en segundo plano, sin intervalos huérfanos");
+      app.setVisibility("visible");
+      assert.deepEqual(app.intervals.map((i) => i.ms), [250]);
+      await pressStart(app);
+      app.advance(5_000);
+      app.tick();
+      assert.equal(app.el("timerDisplay").textContent, "24:55");
     });
 
     await t.test("restore rechaza: antes del plazo arranca como invitado al instante; después no deja rechazos sin manejar", async (rejects) => {

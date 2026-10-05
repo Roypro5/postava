@@ -36,7 +36,7 @@ test("los módulos del cliente registrados en la allowlist se sirven con 200", a
     for (const path of [
       "/app.js", "/dom.js", "/sound.js", "/camera-utils.js", "/camera.js", "/ui.js", "/notifications.js", "/posture.js",
       "/posture-monitor.js", "/settings.js", "/overlay.js", "/stats-math.js", "/stats-session.js",
-      "/stats-queue.js", "/focus-stats.js", "/timer.js", "/theme.js", "/theme-init.js",
+      "/stats-queue.js", "/focus-stats.js", "/timer.js", "/theme.js", "/theme-init.js", "/heartbeat.js", "/tick-worker.js",
     ]) {
       assert.equal(await get(port, path), 200, path);
     }
@@ -69,6 +69,7 @@ const IMPORT_PATTERNS = [
   new RegExp(String.raw`\bimport\s+(?:[^"';]*?\sfrom\s*)?(["'])${LOCAL_SPECIFIER}\1`, "g"), // import x from "./y"; import "./y"
   new RegExp(String.raw`\bexport\s+[^"';]*?\sfrom\s*(["'])${LOCAL_SPECIFIER}\1`, "g"), // export * from "./y"
   new RegExp(String.raw`\bimport\(\s*(["'])${LOCAL_SPECIFIER}\1\s*\)`, "g"), // import("./y")
+  new RegExp(String.raw`\bnew\s+(?:Shared)?Worker\(\s*new\s+URL\(\s*(["'])${LOCAL_SPECIFIER}\1`, "g"), // new Worker(new URL("./y", import.meta.url))
 ];
 
 function localImports(source) {
@@ -113,7 +114,7 @@ test("el cierre transitivo de imports de las páginas se sirve entero con 200", 
   const paths = [...closure.keys()];
 
   // Control de vacuidad: el recorrido debe llegar a los módulos conocidos de la app.
-  for (const known of ["/app.js", "/dom.js", "/timer.js", "/posture-monitor.js", "/posture.js", "/stats-queue.js", "/stats-session.js", "/theme-init.js"]) {
+  for (const known of ["/app.js", "/dom.js", "/timer.js", "/posture-monitor.js", "/posture.js", "/stats-queue.js", "/stats-session.js", "/theme-init.js", "/heartbeat.js", "/tick-worker.js"]) {
     assert.ok(closure.has(known), `el recorrido no llegó a ${known}: ¿cambió el regex de imports?`);
   }
   assert.ok(paths.length >= 15, `se esperaban >= 15 recursos y hay ${paths.length}`);
@@ -153,10 +154,11 @@ test("el recorrido de imports detecta módulos ausentes de la allowlist (control
     } from "../tres.js";
     export * from "./cuatro.js";
     const lazy = () => import("./cinco.js");
+    const w = new Worker(new URL("./seis.js", import.meta.url), { type: "module" });
     import { cdn } from "https://cdn.example.com/x.js";
     // import ignored from "./comentado.js";
   `;
-  assert.deepEqual(localImports(sample).sort(), ["../tres.js", "./cinco.js", "./cuatro.js", "./uno.js", "/dos.js"]);
+  assert.deepEqual(localImports(sample).sort(), ["../tres.js", "./cinco.js", "./cuatro.js", "./seis.js", "./uno.js", "/dos.js"]);
   assert.deepEqual(
     pageAssets(`<link rel="stylesheet" href="a.css"><script src="https://x/y.js"></script><script type="module" src="/b.js"></script>`),
     ["/b.js", "a.css"],

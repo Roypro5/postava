@@ -1,11 +1,13 @@
 import { loadAuth } from "/assets/auth-adapter.bundle.js";
 import { number, computeFatigue, computeScore } from "/stats-math.js";
+import { accountScopedQueueKey, accountClearedKey } from "/stats-queue.js";
 
 const $ = (id) => document.getElementById(id);
 const state = { days: [], data: null, period: 7 };
 let statsLoadInFlight = false;
 let statsReloadRequested = false;
 let authListenerAdded = false;
+let currentUserId = null;
 const issueLabels = {
   neck: "Cuello",
   shoulders: "Hombros",
@@ -50,6 +52,8 @@ async function loadStats() {
       redirectToSignIn("session-required");
       return;
     }
+    currentUserId = user.id ?? null;
+    $("deleteStatsOpen").disabled = !currentUserId;
     const account = $("stats-account");
     const signOut = $("stats-signout");
     $("stats-user").textContent = user.primaryEmailAddress?.emailAddress || "Sesión iniciada";
@@ -344,3 +348,84 @@ function setupTooltips() {
 setupTooltips();
 
 loadStats();
+/* Privacidad: borrar todas las estadísticas de la cuenta (DELETE /api/stats).
+   Diálogo nativo: Esc lo cierra, el foco empieza en Cancelar y vuelve al botón al cerrar. */
+function setupPrivacy() {
+  const dialog = $("deleteStatsDialog");
+  const openButton = $("deleteStatsOpen");
+  const cancel = $("deleteStatsCancel");
+  const confirm = $("deleteStatsConfirm");
+  const error = $("deleteStatsError");
+  const status = $("deleteStatsStatus");
+  let busy = false;
+
+  const setBusy = (value) => {
+    busy = value;
+    cancel.disabled = value;
+    confirm.disabled = value;
+    confirm.textContent = value ? "Borrando…" : "Borrar";
+  };
+  // Los dos avisos son regiones role="status" siempre presentes: solo cambia su texto.
+  const showError = (message) => {
+    error.textContent = message;
+  };
+
+  openButton.addEventListener("click", () => {
+    error.textContent = "";
+    setBusy(false);
+    dialog.showModal();
+  });
+  cancel.addEventListener("click", () => dialog.close());
+  // Esc no debe cerrar el diálogo mientras la petición está en curso.
+  dialog.addEventListener("cancel", (event) => {
+    if (busy) event.preventDefault();
+  });
+
+  confirm.addEventListener("click", async () => {
+    if (busy) return;
+    setBusy(true);
+    error.textContent = "";
+    // Marca de borrado + cola local ANTES del DELETE: una pestaña del Pomodoro abierta
+    // (que fusiona con storage, ver stats-queue.js) no reenvía lo anterior a la marca.
+    try {
+      if (currentUserId) {
+        // Marca primero: toda sesión en cola anterior a ella se descarta en cualquier pestaña.
+        localStorage.setItem(accountClearedKey(currentUserId), String(Date.now()));
+        localStorage.removeItem(accountScopedQueueKey(currentUserId));
+      }
+    } catch {
+      // localStorage no disponible: no hay cola local que limpiar.
+    }
+    try {
+      const response = await fetch("/api/stats", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "DELETE_ALL_STATS" }),
+      });
+      if (response.status === 401) {
+        redirectToSignIn("session-ended");
+        return;
+      }
+      if (response.status === 429) {
+        showError("Demasiados intentos. Espera un minuto e inténtalo de nuevo.");
+        return;
+      }
+      if (!response.ok) throw new Error("delete-failed");
+      const result = await response.json().catch(() => ({}));
+      state.data = { days: [], habitDistribution: [] };
+      state.days = [];
+      render();
+      showLoadState("Aún no hay sesiones de enfoque completadas. Cuando completes un bloque, tus estadísticas aparecerán aquí.", "empty");
+      const count = number(result.deleted);
+      status.textContent = count === 1 ? "Se borró 1 sesión." : `Se borraron ${count} sesiones.`;
+      dialog.close();
+      openButton.focus();
+    } catch {
+      showError("No se pudieron borrar tus estadísticas. Inténtalo de nuevo.");
+    } finally {
+      setBusy(false);
+    }
+  });
+}
+setupPrivacy();
