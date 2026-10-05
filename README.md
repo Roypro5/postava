@@ -156,6 +156,25 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 
 Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
 
+### Operación del servidor
+
+- **`GET /healthz`** responde `200 {"ok":true}` (solo liveness: no consulta la
+  base de datos, no exige sesión y lleva `Cache-Control: no-store`). Útil como
+  health check del despliegue.
+- **Cierre ordenado.** Con `SIGTERM`/`SIGINT` el servidor deja de aceptar
+  conexiones, cierra las inactivas, espera a las peticiones en vuelo, cierra el
+  pool de PostgreSQL y sale con código 0. Las respuestas durante el cierre llevan
+  `Connection: close`. Si no termina en 10 s fuerza la salida con código 1 **sin
+  cerrar el pool** (el sistema operativo cierra los sockets); una segunda señal
+  durante el cierre (doble Ctrl+C) también fuerza la salida con código 1. En
+  Windows también se atiende `SIGBREAK`.
+- **Proxy de Clerk.** El upstream tiene un timeout de inactividad de 10 s (504
+  `UPSTREAM_TIMEOUT`) y las respuestas que se almacenan en memoria (sin
+  `Content-Length`) se limitan a 2 MB (502 `UPSTREAM_TOO_LARGE`).
+- **Telemetría de Clerk desactivada** (`telemetry: false` en `auth-adapter.js`):
+  `clerk-telemetry.com` ya no está en el `connect-src` de la CSP.
+- Una ruta `/api/*` inexistente responde `404 {"error":"not_found"}`.
+
 ## Tests
 
 ```bash

@@ -298,7 +298,7 @@ test("buildContentSecurityPolicy: el origen de Clerk va solo a connect-src, y se
       assert.ok(!directive(csp, name).includes(origin), `${name} no debe llevar el origen`);
     }
     // El resto de connect-src se conserva.
-    for (const kept of ["'self'", "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/", "https://storage.googleapis.com/mediapipe-models/", "https://clerk-telemetry.com"]) {
+    for (const kept of ["'self'", "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/", "https://storage.googleapis.com/mediapipe-models/"]) {
       assert.ok(directive(csp, "connect-src").includes(kept), kept);
     }
     assert.ok(!buildContentSecurityPolicy({ isProduction }).includes(origin));

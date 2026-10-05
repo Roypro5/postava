@@ -145,6 +145,12 @@ export function createAuthAdapter(clerk, request = fetch) {
   };
 }
 
+// `telemetry: false` keeps clerk-js from reporting usage to clerk-telemetry.com
+// (which the CSP no longer allows).
+export const CLERK_LOAD_OPTIONS = Object.freeze({
+  signInUrl: "/sign-in", signUpUrl: "/sign-up", telemetry: false,
+});
+
 let loading;
 export function loadAuth() {
   if (!loading) loading = (async () => {
@@ -156,7 +162,7 @@ export function loadAuth() {
     const { publishableKey, proxyUrl } = await response.json();
     if (!publishableKey) throw new Error("AUTH_UNAVAILABLE");
     const clerk = new Clerk(publishableKey, { proxyUrl });
-    await clerk.load({ localization: esES, signInUrl: "/sign-in", signUpUrl: "/sign-up" });
+    await clerk.load({ ...CLERK_LOAD_OPTIONS, localization: esES });
     // Required for Clerk's official development authentication test helper.
     window.Clerk = clerk;
     return createAuthAdapter(clerk);

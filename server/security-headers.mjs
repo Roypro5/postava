@@ -34,10 +34,8 @@ const MEDIAPIPE_MODEL_PREFIX = "https://storage.googleapis.com/mediapipe-models/
 // cloudflare.com/turnstile/v0/api.js") and Turnstile renders its widget in an
 // iframe from the same host.
 const CLERK_TURNSTILE_HOST = "https://challenges.cloudflare.com";
-// clerk-js reports anonymized usage telemetry to this fixed host unless a
-// caller disables it explicitly; auth-adapter.js does not, so it must stay
-// reachable from connect-src.
-const CLERK_TELEMETRY_HOST = "https://clerk-telemetry.com";
+// clerk-js telemetry (clerk-telemetry.com) is disabled in auth-adapter.js
+// (`telemetry: false`), so that host is intentionally NOT in connect-src.
 // styles.css `@import`s the Google Fonts stylesheet, which itself references
 // font files served from fonts.gstatic.com.
 const GOOGLE_FONTS_CSS_HOST = "https://fonts.googleapis.com";
@@ -118,7 +116,7 @@ function buildDirectives({ includeClerkDevHosts, clerkFrontendOrigin }) {
     CLERK_TURNSTILE_HOST,
     "'wasm-unsafe-eval'",
   ];
-  const connectSrc = ["'self'", MEDIAPIPE_CDN_PREFIX, MEDIAPIPE_MODEL_PREFIX, CLERK_TELEMETRY_HOST];
+  const connectSrc = ["'self'", MEDIAPIPE_CDN_PREFIX, MEDIAPIPE_MODEL_PREFIX];
   const frameSrc = [CLERK_TURNSTILE_HOST];
 
   if (includeClerkDevHosts) {

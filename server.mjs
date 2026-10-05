@@ -338,6 +338,9 @@ export function createApp({ store = statsStore } = {}) {
     }),
   );
 
+  // Liveness only (no database, no auth, no rate limit): "the process answers".
+  app.get("/healthz", noStore, (_req, res) => res.json({ ok: true }));
+
   // This raw streaming proxy must be mounted before all body parsers.
   app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
   // Browser auth endpoints are same-origin only; do not reflect arbitrary CORS origins.
@@ -516,6 +519,7 @@ export function createApp({ store = statsStore } = {}) {
     if (!file) return next();
     return res.sendFile(resolve(root, file));
   });
+  app.use("/api", (_req, res) => res.status(404).json({ error: "not_found" }));
   app.use((_req, res) => res.status(404).type("text").send("404"));
 
   app.use(handleUnexpectedError);
@@ -565,6 +569,87 @@ function describeClientError(err) {
   return String(err?.message ?? "client error").split("\n", 1)[0].slice(0, 200);
 }
 
+export const SHUTDOWN_FORCE_EXIT_MS = 10_000;
+const SHUTDOWN_SWEEP_MS = 100;
+
+/**
+ * Graceful shutdown: stop accepting connections, drop idle keep-alive sockets,
+ * let in-flight requests finish, close the database pool, then exit. A timer
+ * (unref'd, so it never keeps the process alive by itself) forces exit(1) if
+ * that takes longer than `timeoutMs`. Everything it touches is injected so it
+ * can be tested without signals or a real process.
+ *
+ * `closeResources` is an async function (e.g. () => statsStore.close()).
+ * Returns { shutdown(signal), install() }; install() hooks SIGTERM, SIGINT and SIGBREAK.
+ */
+export function createGracefulShutdown({
+  server,
+  closeResources = async () => {},
+  proc = process,
+  timeoutMs = SHUTDOWN_FORCE_EXIT_MS,
+  log = console,
+} = {}) {
+  let running = null;
+  let sweeper = null;
+
+  function shutdown(signal = "SIGTERM") {
+    if (running) return running;
+    log.log(`[shutdown] ${signal} received: closing the server`);
+    const timer = setTimeout(() => {
+      log.error(`[shutdown] timed out after ${timeoutMs} ms, forcing exit`);
+      proc.exit(1);
+    }, timeoutMs);
+    timer.unref?.();
+
+    running = (async () => {
+      let code = 0;
+      try {
+        // Answers sent from now on tell keep-alive clients to go away.
+        server.prependListener?.("request", (_req, res) => {
+          if (!res.headersSent) res.setHeader("Connection", "close");
+        });
+        const closed = new Promise((resolveClosed) => {
+          // server.close() calls back once every connection has ended; the
+          // error (server not running) only means there is nothing to wait for.
+          server.close(() => resolveClosed());
+        });
+        // A keep-alive socket only becomes idle once its in-flight request is
+        // answered, so sweep until the server reports it is closed.
+        server.closeIdleConnections?.();
+        sweeper = setInterval(() => server.closeIdleConnections?.(), SHUTDOWN_SWEEP_MS);
+        sweeper.unref?.();
+        await closed;
+        clearInterval(sweeper);
+        await closeResources();
+      } catch (error) {
+        log.error("[shutdown] error while closing:", error?.code ?? error?.name ?? "Error");
+        code = 1;
+      }
+      clearInterval(sweeper);
+      clearTimeout(timer);
+      proc.exit(code);
+    })();
+    return running;
+  }
+
+  function install() {
+    // SIGBREAK is what Windows sends on Ctrl+Break / console close. A second
+    // signal while shutting down (double Ctrl+C) means "now": exit(1) at once.
+    for (const signal of ["SIGTERM", "SIGINT", "SIGBREAK"]) {
+      proc.on(signal, () => {
+        if (running) {
+          log.error(`[shutdown] second ${signal}: forcing exit`);
+          proc.exit(1);
+          return;
+        }
+        void shutdown(signal);
+      });
+    }
+  }
+
+  return { shutdown, install };
+}
+
 const isMain =
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url);
@@ -583,8 +668,12 @@ if (isMain) {
     process.exitCode = 1;
   } else {
     await bundleFrontend();
-    createApp().listen(port, () => {
+    const server = createApp().listen(port, () => {
       console.log(`Postava listening on port ${port}`);
     });
+    createGracefulShutdown({
+      server,
+      closeResources: () => statsStore.close(),
+    }).install();
   }
 }

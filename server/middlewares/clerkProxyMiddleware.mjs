@@ -9,6 +9,30 @@ import { isClerkSecretKeyConfigured } from "../clerk-config.mjs";
 const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
+// Clerk answers in well under a second; if the upstream goes silent this long
+// (connecting, or between chunks of the answer) the client gets a 504 instead
+// of a hung request. Responses that arrive without a Content-Length are held in
+// memory before being sent, so they have a ceiling too (502 when exceeded).
+export const CLERK_PROXY_UPSTREAM_TIMEOUT_MS = 10_000;
+export const CLERK_PROXY_MAX_BUFFERED_BYTES = 2 * 1024 * 1024;
+
+const TIMED_OUT = Symbol("postava.clerkProxyTimedOut");
+
+function sendProxyError(res, status, error) {
+  if (res.writableEnded) return;
+  if (res.headersSent) {
+    res.destroy();
+    return;
+  }
+  const body = JSON.stringify({ error });
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": String(Buffer.byteLength(body)),
+    "cache-control": "no-store",
+  });
+  res.end(body);
+}
+
 // Express matches the mount point without regard to case, and so does the guard
 // below, so the prefix is removed the same way.
 const PROXY_MOUNT_PREFIX = new RegExp(`^${CLERK_PROXY_PATH}`, "i");
@@ -146,6 +170,8 @@ export function clerkProxyMiddleware({
   // Overridable so tests can point the proxy at a local stand-in for Clerk.
   target = CLERK_FAPI,
   rateLimit = CLERK_PROXY_RATE_LIMIT,
+  upstreamTimeoutMs = CLERK_PROXY_UPSTREAM_TIMEOUT_MS,
+  maxBufferedBytes = CLERK_PROXY_MAX_BUFFERED_BYTES,
 } = {}) {
   if (!isProduction) {
     return (_req, _res, next) => next();
@@ -170,7 +196,18 @@ export function clerkProxyMiddleware({
     selfHandleResponse: true,
     pathRewrite: stripClerkProxyMount,
     on: {
+      error: (_err, req, res) => {
+        // Own handler (the library's default answers in plain text).
+        if (req[TIMED_OUT]) return sendProxyError(res, 504, "UPSTREAM_TIMEOUT");
+        return sendProxyError(res, 502, "UPSTREAM_ERROR");
+      },
       proxyReq: (proxyReq, req) => {
+        // Inactivity timeout on the upstream socket; it also covers the wait
+        // between chunks while the answer is being read.
+        proxyReq.setTimeout(upstreamTimeoutMs, () => {
+          req[TIMED_OUT] = true;
+          proxyReq.destroy();
+        });
         const protocol = getClerkProxyProtocol(req);
         const host = getClerkProxyHost(req) || "";
         proxyReq.setHeader(
@@ -219,18 +256,32 @@ export function clerkProxyMiddleware({
         }
 
         const chunks = [];
-        proxyRes.on("data", (chunk) => chunks.push(chunk));
+        let buffered = 0;
+        let failed = false;
+        proxyRes.on("data", (chunk) => {
+          if (failed) return;
+          buffered += chunk.length;
+          if (buffered > maxBufferedBytes) {
+            failed = true;
+            chunks.length = 0;
+            proxyRes.destroy();
+            sendProxyError(res, 502, "UPSTREAM_TOO_LARGE");
+            return;
+          }
+          chunks.push(chunk);
+        });
         proxyRes.on("end", () => {
+          if (failed) return;
           const body = Buffer.concat(chunks);
           headers["content-length"] = String(body.length);
           res.writeHead(status, headers);
           res.end(body);
         });
         proxyRes.on("error", () => {
-          if (!res.headersSent) {
-            res.writeHead(502, { "content-length": "0" });
-          }
-          res.end();
+          if (failed) return;
+          failed = true;
+          if (req[TIMED_OUT]) sendProxyError(res, 504, "UPSTREAM_TIMEOUT");
+          else sendProxyError(res, 502, "UPSTREAM_ERROR");
         });
       },
     },

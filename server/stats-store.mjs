@@ -199,6 +199,9 @@ export function buildStats(rows) {
 
 export function createStatsStore(pool) {
   return {
+    // Graceful shutdown: waits for checked-out clients and closes the rest.
+    close: () => pool.end(),
+
     async getStats(userId, period = 7) {
       const result = await pool.query(
         `SELECT started_at, duration_minutes, good_ms, bad_ms, issues, issues_unit

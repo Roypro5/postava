@@ -62,7 +62,7 @@ test("responses carry the hardening headers, including a CSP that matches what t
     assert.match(csp, /script-src[^;]*https:\/\/cdn\.jsdelivr\.net/);
     assert.match(csp, /script-src[^;]*'wasm-unsafe-eval'/);
     assert.match(csp, /connect-src[^;]*https:\/\/storage\.googleapis\.com/);
-    assert.match(csp, /connect-src[^;]*https:\/\/clerk-telemetry\.com/);
+    assert.doesNotMatch(csp, /clerk-telemetry/);
     assert.match(csp, /frame-src[^;]*https:\/\/challenges\.cloudflare\.com/);
     assert.match(csp, /worker-src[^;]*blob:/);
     assert.match(csp, /style-src[^;]*https:\/\/fonts\.googleapis\.com/);

@@ -10,7 +10,7 @@ import { ensureAudio, setSoundEnabled, soundPosture, soundPhaseEnd } from "./sou
 import { createCamera } from "./camera.js";
 import { createUi } from "./ui.js";
 import { phaseEndNotification, postureNotification, shouldNotifyPostureNow, showSystemNotification, notifyStatusView } from "./notifications.js";
-import { readSettings, writeSettings } from "./settings.js";
+import { readSettings, writeSettings, sanitizeSettings } from "./settings.js";
 import { bindFocusAccount } from "./stats-session.js";
 import { createStatsQueue } from "./stats-queue.js";
 import { createFocusStats } from "./focus-stats.js";
@@ -253,32 +253,26 @@ function saveSettings() {
   writeSettings(data);
 }
 
-const BASELINE_KEYS = ["neck", "width", "tilt", "side", "chin", "shoulderY"];
-const isValidBaseline = (b) =>
-  b !== null && typeof b === "object" && BASELINE_KEYS.every((key) => Number.isFinite(b[key]));
-
 function loadSettings() {
-  const data = readSettings();
-  if (!data) return;
+  const raw = readSettings();
+  if (!raw) return; // sin datos guardados: se quedan los valores de index.html
+  const data = sanitizeSettings(raw);
 
-  if (data.focus) el.focusMins.value = data.focus;
-  if (data.brk) el.breakMins.value = data.brk;
-  if (data.tolerance) el.tolerance.value = data.tolerance;
-  if (data.delay) el.delaySeconds.value = data.delay;
-  if (typeof data.sound === "boolean") el.soundToggle.checked = data.sound;
-  if (typeof data.skeleton === "boolean") el.skeletonToggle.checked = data.skeleton;
-  if (typeof data.hud === "boolean") el.hudToggle.checked = data.hud;
-  if (typeof data.hideVideo === "boolean") el.hideVideoToggle.checked = data.hideVideo;
-  if (typeof data.camOnlyRunning === "boolean") el.camOnlyRunning.checked = data.camOnlyRunning;
+  el.focusMins.value = data.focus;
+  el.breakMins.value = data.brk;
+  el.tolerance.value = data.tolerance;
+  el.delaySeconds.value = data.delay;
+  el.soundToggle.checked = data.sound;
+  el.skeletonToggle.checked = data.skeleton;
+  el.hudToggle.checked = data.hud;
+  el.hideVideoToggle.checked = data.hideVideo;
+  el.camOnlyRunning.checked = data.camOnlyRunning;
   // Solo se restaura activado si el permiso ya está concedido; si no, el primer
   // clic tendría que desmarcar en vez de pedir permiso.
-  if (typeof data.notify === "boolean") {
-    el.notifyToggle.checked = data.notify && "Notification" in window && Notification.permission === "granted";
-  }
-  // Un baseline manipulado o de una versión antigua (claves ausentes o no numéricas)
-  // daría NaN en las métricas y nunca marcaría `exceeded`: se ignora sin avisar,
-  // como si no hubiera calibración guardada.
-  if (isValidBaseline(data.baseline)) {
+  el.notifyToggle.checked = data.notify && "Notification" in window && Notification.permission === "granted";
+  // Un baseline manipulado o de una versión antigua se descarta en sanitizeSettings
+  // (daría NaN en las métricas): se ignora sin avisar, como si no hubiera calibración.
+  if (data.baseline) {
     posture.baseline = data.baseline;
     setMessage("Calibración anterior cargada. Si has movido la cámara o la silla, vuelve a calibrar.");
   }

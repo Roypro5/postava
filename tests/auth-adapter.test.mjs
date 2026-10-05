@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createAuthAdapter, authError } from "../auth-adapter.js";
+import { createAuthAdapter, authError, CLERK_LOAD_OPTIONS } from "../auth-adapter.js";
+
+test("clerk-js se carga con la telemetría desactivada", () => {
+  assert.equal(CLERK_LOAD_OPTIONS.telemetry, false);
+  assert.equal(CLERK_LOAD_OPTIONS.signInUrl, "/sign-in");
+  assert.equal(CLERK_LOAD_OPTIONS.signUpUrl, "/sign-up");
+});
 
 function setup() {
   const calls = [];
