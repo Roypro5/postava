@@ -315,8 +315,8 @@ Restricciones fijas para todo lo de esta fase:
 | T0.1 | Entorno | ☑ | — | Node 24.21, npm 11.19, dependencias OK, árbol limpio |
 | T0.2 | Subagentes en `.agents/agents/` | ☑ | `4ca14ae` | 11 subagentes portados y verificados con revisor-proyectos |
 | T0.3 | Línea base de tests | ☑ | — | 719/719 unitarios (~16s), 8/9 UI (~66s, fallo esperado A1) |
-| F0 | PR #2 mergeado y `.docx` fuera | ☐ | — | ⛔ usuario |
-| T1.1 | Spec `/stats` | ☐ | | |
+| F0 | PR #2 mergeado y `.docx` fuera | ☑ | — | Confirmado por usuario (mergeado en main, docx fuera) |
+| T1.1 | Spec `/stats` | ☑ | `8ab3d9e` | Interceptar handshake a clerk.test.invalid hacia /sign-in (9/9 en UI) |
 | T1.2 | Playwright en CI | ☐ | | |
 | T1.3 | Lockfile público | ☐ | | ⛔ |
 | T2.1 | Sacar `auth-adapter.js` de la allowlist | ☐ | | |
