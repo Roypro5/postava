@@ -318,7 +318,8 @@ Restricciones fijas para todo lo de esta fase:
 | F0 | PR #2 mergeado y `.docx` fuera | ☑ | — | Confirmado por usuario (mergeado en main, docx fuera) |
 | T1.1 | Spec `/stats` | ☑ | `8ab3d9e` | Interceptar handshake a clerk.test.invalid hacia /sign-in (9/9 en UI) |
 | T1.2 | Playwright en CI | ☑ | `d3f2b80` | Job `ui` con Chromium en GitHub Actions y documentación en README |
-| T1.3 | Lockfile público | ☐ | | ⛔ |
+| T1.3 | Lockfile público | ☑ | `c0a6271` | Lockfile contra npmjs.org, .npmrc, CI con npm ci y docs limpios |
+| F1 | Puerta Fase 1 | ☐ | — | ⛔ usuario (push y PR de chore/fase-1-estabilizar) |
 | T2.1 | Sacar `auth-adapter.js` de la allowlist | ☐ | | |
 | T2.2 | ESLint | ☐ | | |
 | T2.3 | Fuentes servidas en local | ☐ | | |
