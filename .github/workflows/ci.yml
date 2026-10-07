@@ -36,3 +36,34 @@ jobs:
 
       - name: Pruebas unitarias
         run: npm test
+
+  ui:
+    name: Playwright (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Los tests usan claves ficticias y no crean cuentas ni envían correos (regla 7);
+      # esto evita además que el SDK de Clerk envíe telemetría desde el runner.
+      CLERK_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependencias
+        run: npm install --no-package-lock --no-audit --no-fund --registry=https://registry.npmjs.org
+
+      - name: Instalar navegador de Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Pruebas de interfaz
+        run: npm run test:ui
+
+      - name: Subir reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
