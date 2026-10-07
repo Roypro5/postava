@@ -193,6 +193,30 @@ Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
   `clerk-telemetry.com` ya no está en el `connect-src` de la CSP.
 - Una ruta `/api/*` inexistente responde `404 {"error":"not_found"}`.
 
+## Desarrollo con agentes (Antigravity / Claude Code)
+
+El proyecto se puede desarrollar con agentes de IA. Cada IDE lee su propio fichero de
+reglas, y los dos dicen lo mismo:
+
+| Fichero | Lo lee | Para qué |
+| --- | --- | --- |
+| [`AGENTS.md`](AGENTS.md) | Antigravity (y otros agentes compatibles) | reglas que no se negocian, entorno, cuándo una tarea está terminada y qué exige permiso |
+| [`CLAUDE.md`](CLAUDE.md) + `.claude/agents/` | Claude Code | las mismas reglas y la matriz de subagentes de Claude |
+| `.agents/agents/` | Antigravity | subagentes de Antigravity, portados desde `.claude/agents/` (los crea la tarea T0.2 del plan) |
+| [`docs/antigravity/AUDITORIA.md`](docs/antigravity/AUDITORIA.md) | personas y agentes | estado del proyecto a 2026-10-07 y hallazgos priorizados |
+| [`docs/antigravity/PLAN.md`](docs/antigravity/PLAN.md) | personas y agentes | plan por fases con tareas, subagentes, criterios de «hecho cuando» y tabla de seguimiento |
+| [`docs/antigravity/PROMPT-INICIO.md`](docs/antigravity/PROMPT-INICIO.md) | tú | prompt para pegar en Antigravity la primera vez y en cada sesión siguiente |
+
+**Para empezar con Antigravity:**
+
+1. Abre esta carpeta en Antigravity.
+2. Pega el prompt de [`PROMPT-INICIO.md`](docs/antigravity/PROMPT-INICIO.md).
+3. El agente instala sus subagentes (Fase 0), ejecuta el plan tarea a tarea con un
+   commit por tarea y se para en cada puerta ⛔ para pedir tu OK.
+
+Nunca hace push ni abre PRs sin permiso. Si cambia una regla, se edita primero
+`AGENTS.md` y después `CLAUDE.md`.
+
 ## Tests
 
 ```bash

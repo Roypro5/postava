@@ -86,6 +86,8 @@ Usa o convoca a estos agentes según la naturaleza de la tarea:
 
 ---
 
+> **Antigravity:** usa [`AGENTS.md`](AGENTS.md) (mismas reglas) y sus propios subagentes en `.agents/agents/`. El plan en curso está en [`docs/antigravity/PLAN.md`](docs/antigravity/PLAN.md); si trabajas con Claude Code sobre una tarea de ese plan, marca su casilla en la tabla de seguimiento. Si cambia una regla, edita primero `AGENTS.md`.
+
 ## 5. Flujo de Trabajo Recomendado (De Vibecoding a Código Robusto)
 
 1. **Antes de construir una función grande:**
