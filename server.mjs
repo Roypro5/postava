@@ -473,7 +473,6 @@ export function createApp({ store = statsStore } = {}) {
     ["/settings.js", "settings.js"],
     ["/overlay.js", "overlay.js"],
     ["/login.css", "login.css"],
-    ["/auth-adapter.js", "auth-adapter.js"],
     ["/login.js", "login.js"],
     ["/account.js", "account.js"],
     ["/logo.svg", "logo.svg"],

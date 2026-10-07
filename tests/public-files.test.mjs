@@ -3,7 +3,7 @@ import test from "node:test";
 import http from "node:http";
 import { once } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
-import { createApp } from "../server.mjs";
+import { createApp, bundleFrontend } from "../server.mjs";
 
 // El SDK de Clerk envía telemetría a sus servidores con claves pk_test: en tests no debe salir nada a la red.
 process.env.CLERK_TELEMETRY_DISABLED ??= "1";
@@ -139,9 +139,20 @@ test("el servidor no expone código de servidor, manifiestos, pruebas ni documen
     for (const path of [
       "/server.mjs", "/package.json", "/package-lock.json", "/server/stats-store.mjs", "/CLAUDE.md",
       "/tests/timer.test.mjs", "/playwright.config.mjs", "/.env", "/../server.mjs", "/node_modules/express/package.json",
+      "/auth-adapter.js",
     ]) {
       assert.equal(await get(port, path), 404, path);
     }
+  });
+});
+
+test("GET /auth-adapter.js devuelve 404 y GET /assets/auth-adapter.bundle.js devuelve 200", async () => {
+  if (!existsSync(new URL("./assets/auth-adapter.bundle.js", ROOT))) {
+    await bundleFrontend();
+  }
+  await withServer(async (port) => {
+    assert.equal(await get(port, "/auth-adapter.js"), 404);
+    assert.equal(await get(port, "/assets/auth-adapter.bundle.js"), 200);
   });
 });
 
