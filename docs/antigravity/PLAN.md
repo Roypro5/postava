@@ -317,7 +317,7 @@ Restricciones fijas para todo lo de esta fase:
 | T0.3 | Línea base de tests | ☑ | — | 719/719 unitarios (~16s), 8/9 UI (~66s, fallo esperado A1) |
 | F0 | PR #2 mergeado y `.docx` fuera | ☑ | — | Confirmado por usuario (mergeado en main, docx fuera) |
 | T1.1 | Spec `/stats` | ☑ | `8ab3d9e` | Interceptar handshake a clerk.test.invalid hacia /sign-in (9/9 en UI) |
-| T1.2 | Playwright en CI | ☐ | | |
+| T1.2 | Playwright en CI | ☑ | `d3f2b80` | Job `ui` con Chromium en GitHub Actions y documentación en README |
 | T1.3 | Lockfile público | ☐ | | ⛔ |
 | T2.1 | Sacar `auth-adapter.js` de la allowlist | ☐ | | |
 | T2.2 | ESLint | ☐ | | |
