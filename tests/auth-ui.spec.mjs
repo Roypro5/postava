@@ -50,6 +50,26 @@ test(`guest timer and ${mockClerk ? "mocked" : "real"} provider initialization s
 });
 
 test("guest statistics access redirects to sign in", async ({ page }) => {
+  if (mockClerk) {
+    await mockClerkProvider(page);
+    await page.route(/clerk\.test\.invalid/, (route) =>
+      route.fulfill({
+        status: 302,
+        headers: { Location: "/sign-in?redirect=/stats" },
+      }),
+    );
+    await page.route(/\/stats(?:\.html)?/, async (route) => {
+      const response = await route.fetch({ maxRedirects: 0 });
+      const location = response.headers()["location"] || "";
+      if (location.includes("clerk.test.invalid")) {
+        return route.fulfill({
+          status: 302,
+          headers: { Location: "/sign-in?redirect=/stats" },
+        });
+      }
+      return route.fulfill({ response });
+    });
+  }
   await page.goto("/stats");
   await expect(page).toHaveURL(/\/sign-in\?redirect=%2Fstats|\/sign-in\?redirect=\/stats/);
   await expect(page.locator("#login-form")).toBeVisible();
