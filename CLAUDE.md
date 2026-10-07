@@ -57,7 +57,7 @@ Sin ciclos de importación. Las dependencias laterales no se importan: se inyect
 - **Iniciar servidor:** `npm start` (ejecuta `node server.mjs 5000`)
 - **Ejecutar tests unitarios:** `npm test` (`node --test tests/*.test.mjs`)
 - **Ejecutar tests de UI:** `npm run test:ui` (`playwright test`)
-- **Instalar dependencias fuera de Replit:** `npm install --no-package-lock --registry=https://registry.npmjs.org`
+- **Instalar dependencias:** `npm install` (o `npm ci`)
 
 ---
 

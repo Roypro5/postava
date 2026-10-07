@@ -29,10 +29,8 @@ jobs:
           # package.json exige >=22.15 (module.registerHooks, que usa tests/app-wiring.test.mjs).
           node-version: 22
 
-      # El package-lock.json apunta al registro interno de Replit, que GitHub no alcanza:
-      # no se usa `npm ci`. Misma instalación que documenta CLAUDE.md.
       - name: Instalar dependencias
-        run: npm install --no-package-lock --no-audit --no-fund --registry=https://registry.npmjs.org
+        run: npm ci
 
       - name: Pruebas unitarias
         run: npm test
@@ -53,7 +51,7 @@ jobs:
           node-version: 22
 
       - name: Instalar dependencias
-        run: npm install --no-package-lock --no-audit --no-fund --registry=https://registry.npmjs.org
+        run: npm ci
 
       - name: Instalar navegador de Playwright
         run: npx playwright install --with-deps chromium

@@ -51,8 +51,7 @@ Para la arquitectura y el mapa de módulos, ver el [README](README.md) (seccione
 - Node ≥ 22.15. Aquí es una instalación portable fuera del PATH: en PowerShell,
   `$env:Path = "$env:LOCALAPPDATA\nodejs;$env:Path"`.
 - PowerShell bloquea `npm.ps1`: usar `npm.cmd` / `npx.cmd`, o Git Bash.
-- Instalar: `npm.cmd install --no-package-lock --registry=https://registry.npmjs.org`.
-  El lockfile apunta a Replit hasta que se complete la tarea T1.3.
+- Instalar: `npm.cmd install` (o `npm.cmd ci`).
 
 ## Comandos
 

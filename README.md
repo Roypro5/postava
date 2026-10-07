@@ -19,13 +19,6 @@ npm start
 <http://localhost:5000> (se puede cambiar con `node server.mjs <puerto>` o con la
 variable `PORT`). Acepta el permiso de cámara al abrirla.
 
-Fuera de Replit, el `package-lock.json` apunta al registry interno de Replit y
-la instalación falla; usa en su lugar:
-
-```bash
-npm install --no-package-lock --registry=https://registry.npmjs.org
-```
-
 Al arrancar, `server.mjs` compila con **esbuild** el adaptador de autenticación
 (`auth-adapter.js` → `assets/auth-adapter.bundle.js`) antes de levantar el
 servidor **Express**. Este sirve únicamente los ficheros de una allowlist (no la
