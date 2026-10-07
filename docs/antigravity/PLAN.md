@@ -312,9 +312,9 @@ Restricciones fijas para todo lo de esta fase:
 
 | ID | Tarea | Estado | Commit | Notas |
 | --- | --- | --- | --- | --- |
-| T0.1 | Entorno | ☐ | — | |
-| T0.2 | Subagentes en `.agents/agents/` | ☐ | | |
-| T0.3 | Línea base de tests | ☐ | — | esperado 719/719 y 8/9 |
+| T0.1 | Entorno | ☑ | — | Node 24.21, npm 11.19, dependencias OK, árbol limpio |
+| T0.2 | Subagentes en `.agents/agents/` | ☑ | `4ca14ae` | 11 subagentes portados y verificados con revisor-proyectos |
+| T0.3 | Línea base de tests | ☑ | — | 719/719 unitarios (~16s), 8/9 UI (~66s, fallo esperado A1) |
 | F0 | PR #2 mergeado y `.docx` fuera | ☐ | — | ⛔ usuario |
 | T1.1 | Spec `/stats` | ☐ | | |
 | T1.2 | Playwright en CI | ☐ | | |
