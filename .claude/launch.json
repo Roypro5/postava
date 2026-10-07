@@ -3,9 +3,12 @@
   "configurations": [
     {
       "name": "postava",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["server.mjs"],
-      "port": 5173
+      "runtimeExecutable": "C:\\Users\\luis.soto\\AppData\\Local\\nodejs\\node.exe",
+      "runtimeArgs": ["server.mjs", "5173"],
+      "port": 5173,
+      "env": {
+        "SESSION_SECRET": "dev-only-secret-not-for-production-0123456789"
+      }
     }
   ]
 }

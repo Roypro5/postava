@@ -1,5 +1,15 @@
 import { Pool } from "pg";
 
+// Límites de validación. tests/db-schema.test.mjs comprueba que db/schema.sql
+// usa exactamente estos valores en sus CHECK.
+export const MIN_DURATION_MINUTES = 1;
+export const MAX_DURATION_MINUTES = 180;
+export const MAX_ALERTS = 10_000;
+export const MAX_USER_ID_LENGTH = 160;
+export const MAX_SESSIONS_PER_DAY = 200;
+export const MAX_MINUTES_PER_DAY = 1440;
+export const DELETE_CONFIRMATION = "DELETE_ALL_STATS";
+
 const ISSUE_KEYS = ["neck", "shoulders", "tilt", "distance"];
 const ISSUE_META = {
   neck: { label: "Cuello adelantado", color: "#c96952" },
@@ -7,14 +17,6 @@ const ISSUE_META = {
   tilt: { label: "Desnivel de hombros", color: "#709b83" },
   distance: { label: "Distancia inadecuada", color: "#6f8997" },
 };
-const FATIGUE_BUCKETS = [
-  { label: "08–10", start: 8 },
-  { label: "10–12", start: 10 },
-  { label: "12–14", start: 12 },
-  { label: "14–16", start: 14 },
-  { label: "16–18", start: 16 },
-  { label: "18–20", start: 18 },
-];
 const SESSION_KEYS = new Set([
   "id",
   "expectedUserId",
@@ -44,8 +46,8 @@ export function validateSessionPayload(body, now = Date.now()) {
     typeof body.id !== "string" ||
     !UUID_PATTERN.test(body.id) ||
     !Number.isInteger(body.durationMinutes) ||
-    body.durationMinutes < 1 ||
-    body.durationMinutes > 180 ||
+    body.durationMinutes < MIN_DURATION_MINUTES ||
+    body.durationMinutes > MAX_DURATION_MINUTES ||
     typeof body.startedAt !== "string" ||
     !ISO_DATE_PATTERN.test(body.startedAt)
   ) {
@@ -70,7 +72,7 @@ export function validateSessionPayload(body, now = Date.now()) {
     body.goodMs + body.badMs > durationMs ||
     !Number.isInteger(body.alerts) ||
     body.alerts < 0 ||
-    body.alerts > 10_000 ||
+    body.alerts > MAX_ALERTS ||
     !["count", "milliseconds"].includes(body.issuesUnit) ||
     !body.issues ||
     typeof body.issues !== "object" ||
@@ -125,12 +127,6 @@ function dayLabel(date) {
 export function buildStats(rows) {
   const daysByDate = new Map();
   const issueMilliseconds = Object.fromEntries(ISSUE_KEYS.map((key) => [key, 0]));
-  const fatigueByStart = new Map(
-    FATIGUE_BUCKETS.map((bucket) => [
-      bucket.start,
-      { bucket, goodMs: 0, badMs: 0, sessions: 0 },
-    ]),
-  );
 
   for (const row of rows) {
     const startedAt = new Date(row.started_at);
@@ -161,21 +157,14 @@ export function buildStats(rows) {
     day.correctMs += goodMs;
     day.measuredMs += goodMs + badMs;
     day.sessions.push({
-      start: startedAt.toISOString().slice(11, 16),
+      // Instante completo en ISO/UTC: el cliente lo formatea en hora local
+      // (agrupar por día sigue siendo en UTC, ver replit.md).
+      startedAt: startedAt.toISOString(),
       minutes: durationMinutes,
       score: score(goodMs, badMs),
+      goodMs,
+      badMs,
     });
-
-    const hour = startedAt.getUTCHours();
-    const bucketStart = FATIGUE_BUCKETS.find(
-      (bucket) => hour >= bucket.start && hour < bucket.start + 2,
-    )?.start;
-    if (bucketStart !== undefined) {
-      const bucket = fatigueByStart.get(bucketStart);
-      bucket.goodMs += goodMs;
-      bucket.badMs += badMs;
-      bucket.sessions += 1;
-    }
 
     const issueValues = Object.fromEntries(
       ISSUE_KEYS.map((key) => [key, Number(issues?.[key] ?? 0)]),
@@ -215,45 +204,77 @@ export function buildStats(rows) {
     color: ISSUE_META[key].color,
   })).filter((habit) => habit.minutes > 0);
 
-  const fatigue = FATIGUE_BUCKETS.flatMap(({ label, start }) => {
-    const bucket = fatigueByStart.get(start);
-    if (!bucket.sessions || bucket.goodMs + bucket.badMs === 0) return [];
-    return [
-      {
-        label,
-        value: Math.round(
-          (bucket.badMs / (bucket.goodMs + bucket.badMs)) * 100,
-        ),
-      },
-    ];
-  });
-
-  return { days, habitDistribution, fatigue };
+  return { days, habitDistribution };
 }
 
 export function createStatsStore(pool) {
   return {
+    // Graceful shutdown: waits for checked-out clients and closes the rest.
+    close: () => pool.end(),
+
     async getStats(userId, period = 7) {
+      // Tope defensivo: el límite diario (MAX_SESSIONS_PER_DAY) acota las filas
+      // legítimas de un periodo; el +1 permite detectar que se alcanzó.
+      const maxRows = MAX_SESSIONS_PER_DAY * period + 1;
       const result = await pool.query(
         `SELECT started_at, duration_minutes, good_ms, bad_ms, issues, issues_unit
          FROM posture_stats_sessions
          WHERE user_id = $1
            AND started_at >= (date_trunc('day', NOW() AT TIME ZONE 'UTC') - ($2::int - 1) * INTERVAL '1 day') AT TIME ZONE 'UTC'
            AND started_at < NOW() + INTERVAL '5 minutes'
-         ORDER BY started_at ASC`,
-        [userId, period],
+         ORDER BY started_at DESC
+         LIMIT $3`,
+        [userId, period, maxRows],
       );
-      return buildStats(result.rows);
+      if (result.rows.length >= maxRows) {
+        console.warn(`[stats] getStats alcanzó el tope de ${maxRows} filas (periodo de ${period} días); el resultado puede estar truncado.`);
+      }
+      // DESC + LIMIT conserva lo más reciente si se trunca; buildStats espera orden ascendente.
+      return buildStats([...result.rows].reverse());
     },
 
+    // Devuelve "inserted" | "duplicate" | "limit_sessions" | "limit_minutes".
+    //
+    // Límite diario (MAX_SESSIONS_PER_DAY sesiones y MAX_MINUTES_PER_DAY minutos
+    // sumados por usuario y día UTC de started_at) aplicado en UNA sentencia:
+    // el CTE `day` cuenta lo ya guardado y el INSERT ... SELECT solo produce
+    // fila si caben. `existed` (misma instantánea, previa al INSERT) distingue
+    // un reintento idempotente (duplicate, 200 aunque el día esté lleno) de un
+    // rechazo por límite.
+    //
+    // El límite es BLANDO: sin advisory lock, dos POST concurrentes del mismo
+    // usuario y día pueden ver ambos n = 199 y pasar los dos (se rebasa por
+    // unas pocas filas). Aceptado: es un tope anti-abuso, no un invariante.
+    // Caso inverso: dos POST concurrentes con el MISMO id; el segundo pierde en
+    // ON CONFLICT con existed = false. Se resuelve con la reconsulta de abajo.
     async saveSession(userId, session) {
       const result = await pool.query(
-        `INSERT INTO posture_stats_sessions
-           (user_id, session_id, started_at, duration_minutes, good_ms, bad_ms,
-            issues, issues_unit, alerts)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
-         ON CONFLICT (user_id, session_id) DO NOTHING
-         RETURNING session_id`,
+        `WITH day AS (
+           SELECT count(*)::int AS n,
+                  COALESCE(sum(duration_minutes), 0)::int AS m
+           FROM posture_stats_sessions
+           WHERE user_id = $1::text
+             AND started_at >= date_trunc('day', $3::timestamptz AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+             AND started_at <  (date_trunc('day', $3::timestamptz AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC'
+         ),
+         ins AS (
+           INSERT INTO posture_stats_sessions
+             (user_id, session_id, started_at, duration_minutes, good_ms, bad_ms,
+              issues, issues_unit, alerts)
+           SELECT $1::text, $2::uuid, $3::timestamptz, $4::int, $5::int, $6::int,
+                  $7::jsonb, $8::text, $9::int
+           FROM day
+           WHERE day.n < $10::int
+             AND day.m + $4::int <= $11::int
+           ON CONFLICT (user_id, session_id) DO NOTHING
+           RETURNING 1
+         )
+         SELECT EXISTS (SELECT 1 FROM ins) AS inserted,
+                (SELECT n FROM day) AS day_sessions,
+                EXISTS (
+                  SELECT 1 FROM posture_stats_sessions
+                  WHERE user_id = $1::text AND session_id = $2::uuid
+                ) AS existed`,
         [
           userId,
           session.id,
@@ -264,23 +285,83 @@ export function createStatsStore(pool) {
           JSON.stringify(session.issues),
           session.issuesUnit,
           session.alerts,
+          MAX_SESSIONS_PER_DAY,
+          MAX_MINUTES_PER_DAY,
         ],
       );
-      return result.rowCount > 0;
+      const row = result.rows[0] ?? {};
+      if (row.inserted) return "inserted";
+      if (row.existed) return "duplicate";
+      // Dos POST simultáneos con el mismo id: el perdedor de ON CONFLICT no vio
+      // la fila del ganador en su instantánea. Se reconsulta con una nueva.
+      const again = await pool.query(
+        `SELECT 1 FROM posture_stats_sessions
+         WHERE user_id = $1 AND session_id = $2::uuid`,
+        [userId, session.id],
+      );
+      if (again.rows.length > 0) return "duplicate";
+      return Number(row.day_sessions) >= MAX_SESSIONS_PER_DAY ? "limit_sessions" : "limit_minutes";
+    },
+
+    // Borra todas las sesiones del usuario verificado; devuelve cuántas.
+    async deleteAll(userId) {
+      const result = await pool.query(
+        "DELETE FROM posture_stats_sessions WHERE user_id = $1",
+        [userId],
+      );
+      return result.rowCount ?? 0;
     },
   };
 }
 
+// The message of a database error is what tells an operator why the stats
+// routes answer 503, but a driver can quote connection details in it. This
+// keeps the useful part: the error code (pg SQLSTATE or a system code such as
+// ECONNREFUSED), and the first line of the message with any URL (connection
+// strings carry credentials) and `password=...`-style assignments redacted,
+// capped in length. Never the error object itself: its stack and properties
+// are not for the log of a request handler. The pool's own errors (an idle
+// client that dies) go through the same function.
+//
+// A secret assignment is a name that contains password/passwd/pwd/secret/token/
+// sslkey (so PGPASSWORD and sslpassword count), an optional closing quote (JSON
+// style), `=` or `:`, and a value that is either a quoted string (which may hold
+// spaces and escaped quotes) or the next run of non-blank characters.
+const URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/\S+/gi;
+const SECRET_ASSIGNMENT_PATTERN =
+  /\b([a-z0-9_]*(?:password|passwd|pwd|secret|token|sslkey)[a-z0-9_]*)["']?\s*[=:]\s*(?:"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?|\S+)/gi;
+
+export function describeDbError(error) {
+  const rawCode = String(error?.code ?? "");
+  const code = /^[A-Za-z0-9_]{1,32}$/.test(rawCode) ? rawCode : "";
+  const raw =
+    typeof error === "string"
+      ? error
+      : typeof error?.message === "string"
+        ? error.message
+        : "unknown error";
+  const message = raw
+    .split("\n", 1)[0]
+    .replace(URL_PATTERN, "[redacted-url]")
+    .replace(SECRET_ASSIGNMENT_PATTERN, "$1=[redacted]")
+    .slice(0, 200);
+  return code ? `[${code}] ${message}` : message;
+}
+
+// `sendSessionRequired(req, res)` answers a request that has no session. The
+// server passes its own, which tells "nobody is signed in" (401) from "Clerk
+// could not be asked" (503); this default is the plain 401.
 export function createStatsHandlers({
   store,
   authenticatedPresence,
   requestHasPublicOrigin,
+  sendSessionRequired = (_req, res) => res.status(401).json({ error: "SESSION_REQUIRED" }),
 }) {
   function getUser(req, res) {
     try {
       const presence = authenticatedPresence(req);
       if (!presence?.userId) {
-        res.status(401).json({ error: "SESSION_REQUIRED" });
+        sendSessionRequired(req, res);
         return null;
       }
       return presence.userId;
@@ -301,7 +382,8 @@ export function createStatsHandlers({
       if (![7, 30].includes(period)) return res.status(400).json({ error: "INVALID_PERIOD" });
       try {
         return res.json(await store.getStats(userId, period));
-      } catch {
+      } catch (error) {
+        console.error("[stats] Database error while reading stats:", describeDbError(error));
         return res.status(503).json({ error: "STATS_UNAVAILABLE" });
       }
     },
@@ -318,17 +400,97 @@ export function createStatsHandlers({
         return res.status(409).json({ error: "ACCOUNT_CHANGED" });
       }
       try {
-        const saved = await store.saveSession(userId, session);
-        return res.status(saved ? 201 : 200).json({
+        const outcome = await store.saveSession(userId, session);
+        if (typeof outcome === "string" && outcome.startsWith("limit")) {
+          const reason = outcome === "limit_minutes" ? "minutes" : "sessions";
+          return res.status(422).json({
+            error: "DAILY_LIMIT_REACHED",
+            reason,
+            limit: reason === "minutes" ? MAX_MINUTES_PER_DAY : MAX_SESSIONS_PER_DAY,
+          });
+        }
+        const inserted = outcome === "inserted";
+        return res.status(inserted ? 201 : 200).json({
           saved: true,
-          duplicate: !saved,
+          duplicate: !inserted,
         });
-      } catch {
+      } catch (error) {
+        console.error("[stats] Database error while saving a session:", describeDbError(error));
+        return res.status(503).json({ error: "STATS_UNAVAILABLE" });
+      }
+    },
+
+    // Orden: origen -> usuario verificado (Clerk + cookie de presencia) ->
+    // confirmación explícita en el body -> borrado. El user_id sale solo de la
+    // sesión verificada, nunca del body.
+    async deleteAll(req, res) {
+      if (!requestHasPublicOrigin(req)) {
+        return res.status(403).json({ error: "UNSAFE_ORIGIN" });
+      }
+      const userId = getUser(req, res);
+      if (!userId) return;
+      const body = req.body;
+      if (
+        !body ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).length !== 1 ||
+        body.confirm !== DELETE_CONFIRMATION
+      ) {
+        return res.status(400).json({ error: "CONFIRMATION_REQUIRED" });
+      }
+      try {
+        const deleted = await store.deleteAll(userId);
+        console.info("[stats] deleteAll", { rows: deleted }); // sin user_id ni otros datos personales
+        return res.json({ deleted });
+      } catch (error) {
+        console.error("[stats] Database error while deleting stats:", describeDbError(error));
         return res.status(503).json({ error: "STATS_UNAVAILABLE" });
       }
     },
   };
 }
 
-const pool = new Pool();
+function positiveInteger(raw, fallback) {
+  if (raw === undefined || String(raw).trim() === "") return fallback;
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Pool limits (the connection itself still comes from the standard PG*
+ * variables, as with `new Pool()`). Every value can be overridden from the
+ * environment; an unset, non-numeric or non-positive override falls back to
+ * the default. No DDL and no session-level settings beyond the timeouts.
+ *
+ *   DB_POOL_MAX                 connections kept open at most (default 5)
+ *   DB_IDLE_TIMEOUT_MS          idle connection is closed after (30 s)
+ *   DB_CONNECTION_TIMEOUT_MS    give up waiting for a connection after (5 s)
+ *   DB_STATEMENT_TIMEOUT_MS     server aborts a statement running longer (10 s)
+ *
+ * `query_timeout` is the client-side backstop for a server that stops
+ * answering altogether, always a little above the server-side timeout.
+ */
+export function poolConfig(env = process.env) {
+  const statementTimeout = positiveInteger(env.DB_STATEMENT_TIMEOUT_MS, 10_000);
+  return {
+    max: positiveInteger(env.DB_POOL_MAX, 5),
+    idleTimeoutMillis: positiveInteger(env.DB_IDLE_TIMEOUT_MS, 30_000),
+    connectionTimeoutMillis: positiveInteger(env.DB_CONNECTION_TIMEOUT_MS, 5_000),
+    statement_timeout: statementTimeout,
+    query_timeout: statementTimeout + 5_000,
+  };
+}
+
+export function createStatsPool({ env = process.env, PoolClass = Pool } = {}) {
+  const pool = new PoolClass(poolConfig(env));
+  // An idle client can fail (database restart, network cut) and pg re-emits
+  // that on the pool; with no listener the process would crash on it.
+  pool.on?.("error", (error) => {
+    console.error("Postgres pool error:", describeDbError(error));
+  });
+  return pool;
+}
+
+const pool = createStatsPool();
 export const statsStore = createStatsStore(pool);

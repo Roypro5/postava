@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: npm test (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Los tests usan claves ficticias y no crean cuentas ni envían correos (regla 7);
+      # esto evita además que el SDK de Clerk envíe telemetría desde el runner.
+      CLERK_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # package.json exige >=22.15 (module.registerHooks, que usa tests/app-wiring.test.mjs).
+          node-version: 22
+
+      # El package-lock.json apunta al registro interno de Replit, que GitHub no alcanza:
+      # no se usa `npm ci`. Misma instalación que documenta CLAUDE.md.
+      - name: Instalar dependencias
+        run: npm install --no-package-lock --no-audit --no-fund --registry=https://registry.npmjs.org
+
+      - name: Pruebas unitarias
+        run: npm test

@@ -50,9 +50,11 @@ test("a failed focus upload remains with its original account after switching", 
       return route.fulfill({ json: { saved: true } });
     }
     const sessions = rows.get(user).map((row) => ({
-      start: new Date(row.startedAt).toISOString().slice(11, 16),
+      startedAt: new Date(row.startedAt).toISOString(),
       minutes: row.durationMinutes,
       score: null,
+      goodMs: 0,
+      badMs: 0,
     }));
     reads.push({ user, sessions: sessions.length });
     return route.fulfill({ json: {
@@ -67,7 +69,6 @@ test("a failed focus upload remains with its original account after switching", 
         sessions,
       }] : [],
       habitDistribution: [],
-      fatigue: [],
     } });
   });
 

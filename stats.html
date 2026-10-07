@@ -8,16 +8,8 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/stats.css">
-  <script>
-    (() => {
-      let pref = "auto";
-      try { pref = localStorage.getItem("postava.theme") || "auto"; } catch {}
-      document.documentElement.dataset.theme =
-        pref === "dark" || (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches)
-          ? "dark" : "light";
-      document.documentElement.dataset.themePref = pref;
-    })();
-  </script>
+  <!-- Tema antes del primer pintado: síncrono a propósito (sin defer/async/module). -->
+  <script src="/theme-init.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -55,7 +47,7 @@
       </div>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
       <p id="stats-load-state" class="stats-load-state loading" role="status" aria-live="polite">Cargando tus estadísticas…</p>
       <section class="stats-heading">
         <div>
@@ -64,14 +56,14 @@
           <p class="heading-note">Pequeñas señales para hacer que el próximo bloque se sienta mejor.</p>
         </div>
         <div class="period-control" role="group" aria-label="Periodo de estadísticas">
-          <button class="period active" data-period="7">7 días</button>
-          <button class="period" data-period="30">Mensual</button>
+          <button class="period active" data-period="7" aria-pressed="true">7 días</button>
+          <button class="period" data-period="30" aria-pressed="false">Mensual</button>
         </div>
       </section>
 
       <section class="daily-grid" aria-label="Resumen del periodo">
         <article class="card score-panel">
-          <div class="panel-top"><p class="eyebrow">Posture Score</p><span class="info" tabindex="0" data-tip="Porcentaje de tiempo medido con postura correcta. No se calcula si la cámara no registró postura.">i</span></div>
+          <div class="panel-top"><p class="eyebrow">Posture Score</p><span class="info" tabindex="0" role="img" aria-label="Más información: Porcentaje de tiempo medido con postura correcta. No se calcula si la cámara no registró postura." data-tip="Porcentaje de tiempo medido con postura correcta. No se calcula si la cámara no registró postura.">i</span></div>
           <div class="score-number"><strong id="score">—</strong><span>/100</span></div>
           <p id="scoreNote" class="score-note">Cargando estadísticas…</p>
           <div class="score-rule"><i id="scoreFill"></i></div>
@@ -79,8 +71,10 @@
         <article class="card duration-panel">
           <p class="eyebrow">Tiempo observado</p>
           <strong id="focusTime" class="duration">0 min</strong>
-          <p class="muted-line"><span class="status-dot good"></span><span id="correctTime">0 min</span> en postura correcta</p>
-          <div id="durationHistogram" class="mini-histogram" aria-label="Histograma de minutos observados por día"></div>
+          <p class="muted-line"><span class="status-dot good" aria-hidden="true"></span><span id="correctTime">0 min</span> en postura correcta</p>
+          <div id="durationHistogram" class="mini-histogram" role="img" aria-label="Histograma de minutos observados por día"></div>
+          <!-- La gráfica es role="img" (su contenido no se lee): stats.js vuelca aquí los mismos valores como lista -->
+          <ul id="durationHistogramSummary" class="sr-only" aria-label="Minutos observados por día" hidden></ul>
         </article>
         <article class="card focus-panel">
           <p class="eyebrow">Ritmo de enfoque</p>
@@ -90,27 +84,28 @@
         </article>
       </section>
 
-      <section class="card daily-bars-card">
+      <section class="card daily-bars-card" aria-labelledby="dailyBarsTitle">
         <header class="section-head">
-          <div><p class="eyebrow">Semana de un vistazo</p><h2>Postura por franja</h2></div>
-          <span class="info" tabindex="0" data-tip="Cada barra representa un día. La altura es el Posture Score; el color resume el estado predominante.">i</span>
+          <div><p class="eyebrow">Semana de un vistazo</p><h2 id="dailyBarsTitle">Postura por franja</h2></div>
+          <span class="info" tabindex="0" role="img" aria-label="Más información: Cada barra representa un día. La altura es el Posture Score; el color resume el estado predominante." data-tip="Cada barra representa un día. La altura es el Posture Score; el color resume el estado predominante.">i</span>
         </header>
         <div id="dailyBars" class="daily-bars" role="img" aria-label="Barras verticales del Posture Score diario"></div>
+        <ul id="dailyBarsSummary" class="sr-only" aria-label="Posture Score por día" hidden></ul>
         <div class="daily-axis"><span>0</span><span>50</span><span>100</span></div>
       </section>
 
       <div class="content-grid">
-        <section class="card sessions-card">
+        <section class="card sessions-card" aria-labelledby="sessionsTitle">
           <header class="section-head">
-            <div><p class="eyebrow">Actividad</p><h2>Sesiones recientes</h2></div>
+            <div><p class="eyebrow">Actividad</p><h2 id="sessionsTitle">Sesiones recientes</h2></div>
             <span id="sessionCount" class="count-pill">0</span>
           </header>
-          <div id="sessionsList" class="sessions-list"></div>
+          <ul id="sessionsList" class="sessions-list" role="list"></ul>
         </section>
-        <section class="card distribution-card">
+        <section class="card distribution-card" aria-labelledby="distributionTitle">
           <header class="section-head">
-            <div><p class="eyebrow">Calidad de la atención</p><h2>Distribución del tiempo</h2></div>
-          <span class="info" tabindex="0" data-tip="Compara tiempo de postura correcta y tiempo con incidencias medidas. El resto no tuvo medición.">i</span>
+            <div><p class="eyebrow">Calidad de la atención</p><h2 id="distributionTitle">Distribución del tiempo</h2></div>
+          <span class="info" tabindex="0" role="img" aria-label="Más información: Compara tiempo de postura correcta y tiempo con incidencias medidas. El resto no tuvo medición." data-tip="Compara tiempo de postura correcta y tiempo con incidencias medidas. El resto no tuvo medición.">i</span>
           </header>
           <div class="distribution-total"><strong id="distributionTotal">0 min</strong><span>tiempo medido</span></div>
           <div id="distributionBar" class="distribution-bar" role="img" aria-label="Distribución entre postura buena, normal y mejorable"></div>
@@ -122,21 +117,39 @@
         </section>
       </div>
 
-      <section class="card fatigue-card">
+      <section class="card fatigue-card" aria-labelledby="fatigueTitle">
         <header class="section-head">
-          <div><p class="eyebrow">Carga acumulada</p><h2>Fatiga por bloques</h2><p class="section-note">Detecta cuándo conviene levantarte antes de que la señal se convierta en aviso.</p></div>
-          <span class="info" tabindex="0" data-tip="Índice relativo de fatiga postural a partir de incidencias y tiempo consecutivo frente a pantalla.">i</span>
+          <div><p class="eyebrow">Carga acumulada</p><h2 id="fatigueTitle">Fatiga por bloques</h2><p class="section-note">Detecta cuándo conviene levantarte antes de que la señal se convierta en aviso.</p></div>
+          <span class="info" tabindex="0" role="img" aria-label="Más información: Porcentaje del tiempo medido con mala postura, agrupado por la hora local de inicio de cada sesión." data-tip="Porcentaje del tiempo medido con mala postura, agrupado por la hora local de inicio de cada sesión.">i</span>
         </header>
         <div id="fatigueMap" class="fatigue-map"></div>
         <div class="fatigue-scale"><span>Baja</span><i></i><span>Alta</span></div>
       </section>
 
       <details class="how card">
-        <summary><span class="eyebrow">Privacidad y conexión con MediaPipe</span><span class="chevron"></span></summary>
+        <summary><span class="eyebrow">Privacidad y conexión con MediaPipe</span><span class="chevron" aria-hidden="true"></span></summary>
         <div>
           <p>Las estadísticas se guardan de forma privada en tu cuenta cuando completas un bloque de enfoque. Solo se envían agregados de duración y postura; el vídeo y los puntos de referencia permanecen en tu dispositivo.</p>
         </div>
       </details>
+
+      <section class="card privacy-card" aria-labelledby="privacyTitle">
+        <header class="section-head">
+          <div><p class="eyebrow">Tus datos</p><h2 id="privacyTitle">Privacidad</h2><p class="section-note">Elimina de forma permanente todas las sesiones guardadas en tu cuenta.</p></div>
+        </header>
+        <button id="deleteStatsOpen" class="stats-danger" type="button" disabled>Borrar todas mis estadísticas</button>
+        <p id="deleteStatsStatus" class="privacy-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <dialog id="deleteStatsDialog" class="confirm-dialog" aria-labelledby="deleteStatsDialogTitle" aria-describedby="deleteStatsDialogText">
+        <h2 id="deleteStatsDialogTitle">¿Borrar todas tus estadísticas?</h2>
+        <p id="deleteStatsDialogText">No se puede deshacer; el Pomodoro sigue funcionando sin cambios.</p>
+        <p id="deleteStatsError" class="privacy-status error" role="status" aria-live="polite"></p>
+        <div class="confirm-actions">
+          <button id="deleteStatsCancel" class="stats-retry" type="button" autofocus>Cancelar</button>
+          <button id="deleteStatsConfirm" class="stats-danger" type="button">Borrar</button>
+        </div>
+      </dialog>
     </main>
     <footer class="footer"><p>Estadísticas privadas de tus sesiones. No son una evaluación médica.</p></footer>
   </div>

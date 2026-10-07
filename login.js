@@ -19,7 +19,9 @@ export async function mountLogin(doc = document, providedAdapter) {
   const modeFromURL = () => location.pathname.startsWith("/sign-up") || location.hash === "#register" ? "register" : location.hash === "#recovery" ? "recovery" : "login";
   let mode = modeFromURL(), busy = false, adapter;
   let passwordMinLength = 8;
+  let minLengthConfigured = false;
   let resendAfter = 0;
+  let focusCode = false;
   const labels = { login: ["Bienvenido de nuevo", "Iniciar sesión"], register: ["Crea tu cuenta", "Crear cuenta"], recovery: ["Recupera tu acceso", "Enviar código"], "verify-email": ["Verifica tu correo", "Verificar correo"], "reset-code": ["Elige una nueva contraseña", "Cambiar contraseña"], "second-factor": ["Verifica tu acceso", "Verificar código"], "first-factor": ["Verifica tu acceso", "Verificar código"], "new-password": ["Renueva tu contraseña", "Guardar contraseña"] };
   const sessionReason = new URLSearchParams(location.search).get("reason");
   const setError = (field, message = "") => {
@@ -39,6 +41,7 @@ export async function mountLogin(doc = document, providedAdapter) {
     password.autocomplete = mode === "login" ? "current-password" : "new-password";
     remember.closest(".remember").hidden = !hasPassword;
     remember.disabled = busy;
+    passwordRequirement.hidden = !minLengthConfigured || !hasPasswordConfirm;
     resend.hidden = !hasCode; resend.disabled = busy;
     doc.querySelector("#login-title").textContent = labels[mode][0];
     doc.querySelector(".button-copy").textContent = busy ? "Procesando…" : labels[mode][1];
@@ -97,23 +100,23 @@ export async function mountLogin(doc = document, providedAdapter) {
       password.value = ""; passwordConfirm.value = ""; code.value = "";
       if (result.step === "complete") { location.assign(redirectTo); return; }
       mode = result.step;
+      focusCode = ["verify-email", "reset-code", "second-factor", "first-factor"].includes(mode);
       status.textContent = mode === "new-password" ? "Elige una contraseña segura."
         : result.strategy === "totp" ? "Escribe el código de tu aplicación de autenticación."
         : result.strategy === "backup_code" ? "Escribe uno de tus códigos de respaldo."
         : mode === "reset-code" ? "Si existe una cuenta con ese correo, recibirás un código para recuperar el acceso."
         : "Introduce el código enviado a tu correo o teléfono.";
     } catch (error) {
-      // Do not disclose whether a recovery address exists.
-      if (mode === "recovery" && error?.errors?.[0]?.code === "form_identifier_not_found") {
-        mode = "reset-code";
-        status.textContent = "Si existe una cuenta con ese correo, recibirás un código para recuperar el acceso.";
-      } else if (error?.errors?.[0]?.code === "form_password_length_too_short") {
+      if (error?.errors?.[0]?.code === "form_password_length_too_short") {
         setError(password, `Usa al menos ${passwordMinLength} caracteres.`);
         password.focus();
       } else status.textContent = authError(error);
       password.value = "";
       passwordConfirm.value = "";
-    } finally { busy = false; render(); }
+    } finally {
+      busy = false; render();
+      if (focusCode) { focusCode = false; code.focus(); }
+    }
   });
   render();
   try {
@@ -124,7 +127,7 @@ export async function mountLogin(doc = document, providedAdapter) {
       passwordMinLength = configuredMinimum;
       password.minLength = configuredMinimum;
       passwordRequirement.textContent = `Para crear o cambiar la contraseña, usa al menos ${configuredMinimum} caracteres.`;
-      passwordRequirement.hidden = false;
+      minLengthConfigured = true;
     }
     const user = await adapter.restore();
     if (user) { location.replace(redirectTo); return; }

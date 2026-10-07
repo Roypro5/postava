@@ -20,7 +20,7 @@ Server startup builds the browser adapter with esbuild. Run `npm install` after 
 
 Configuration is automatically provisioned with Clerk. `SESSION_SECRET` signs the presence cookie; keep it stable across server restarts. The canonical proxy is mounted before body parsing for published custom domains. Frontend requests are same-origin and cookie-based, never explicit bearer tokens.
 
-`/sign-in`, `/sign-up`, and `/login` remain entry routes. `GET /api/account` remains protected by Clerk plus the presence cookie. The earlier React island source is retained in `client/` but is not mounted or served; there must be only one active auth client.
+`/sign-in`, `/sign-up`, and `/login` remain entry routes. `GET /api/account` remains protected by Clerk plus the presence cookie. The earlier React island prototype has been removed; there must be only one active auth client.
 
 ## Authentication test limits
 
@@ -29,5 +29,9 @@ Automated checks may validate anonymous pages, client-side validation surfaces, 
 ## Private session statistics
 
 Completed focus blocks are saved as aggregates for the account active when the block began through `POST /api/stats/sessions`; `GET /api/stats?days=7|30` reads only that account's sessions for the selected UTC calendar period. Both endpoints require Clerk authentication and the signed presence cookie. Each request is scoped by the server-derived Clerk user ID, not a user ID supplied by the browser. The POST compares that identity to the block's expected account to reject cross-account retries. It also rejects raw video and landmark fields. Sessions are deduplicated by account and client-generated session ID. A guest can still use the timer, but guest activity is not attached to any account. Failed sends are retained in an account-scoped browser queue and can be retried.
+
+Daily cap: at most 200 sessions and 1440 summed minutes per user per UTC day of `started_at`, enforced softly in one SQL statement (no advisory lock, so a small race can overshoot). Over the cap `POST` answers `422 DAILY_LIMIT_REACHED`; a retry of an already-saved session still answers 200. `DELETE /api/stats` (body `{"confirm":"DELETE_ALL_STATS"}`, Origin check, Clerk + presence cookie, 5/min) deletes all of the verified user's rows; the UI is the "Privacidad" section of `/stats`. Retention is manual: `db/purge-old.sql` (rows older than 400 days) and `db/delete-user.sql` (a removed Clerk user); a Clerk webhook is future work.
+
+The versioned schema (`db/schema.sql`, `db/migrations/0001_initial.sql`, how-to in `db/README.md`) was deduced from the code and is pending reconciliation with a `pg_dump` of the real database. Apply it by hand with `psql` on the development database; Publish propagates it. Never at server startup.
 
 The `posture_stats_sessions` table lives in Replit's managed development PostgreSQL database. Publish applies the development schema to the managed production database; never create the table at server startup or run production DDL manually. The old shared demo JSON is removed. Video and landmarks stay on the device; only rounded duration, measured posture time, issue counts, and alert counts are saved. A score remains unavailable when no posture measurements were collected.
