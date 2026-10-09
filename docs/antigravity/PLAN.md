@@ -321,7 +321,7 @@ Restricciones fijas para todo lo de esta fase:
 | T1.3 | Lockfile público | ☑ | `c0a6271` | Lockfile contra npmjs.org, .npmrc, CI con npm ci y docs limpios |
 | F1 | Puerta Fase 1 | ☐ | — | ⛔ usuario (push y PR de chore/fase-1-estabilizar) |
 | T2.1 | Sacar `auth-adapter.js` de la allowlist | ☑ | `9a17bb4` | Eliminado de publicFiles, tests añadidos (404/200 OK) |
-| T2.2 | ESLint | ☐ | | |
+| T2.2 | ESLint | ☑ | `954a5e3` | Flat config, globals, script lint, paso CI y 0 errores |
 | T2.3 | Fuentes servidas en local | ☐ | | |
 | T2.4 | `package.json` | ☐ | | licencia: preguntar |
 | T2.5 | Limpieza de Replit | ☐ | | ⛔ |
