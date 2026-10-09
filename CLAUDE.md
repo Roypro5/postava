@@ -55,6 +55,7 @@ Sin ciclos de importación. Las dependencias laterales no se importan: se inyect
 ## 3. Comandos Habituales
 
 - **Iniciar servidor:** `npm start` (ejecuta `node server.mjs 5000`)
+- **Análisis estático:** `npm run lint` (`eslint .`)
 - **Ejecutar tests unitarios:** `npm test` (`node --test tests/*.test.mjs`)
 - **Ejecutar tests de UI:** `npm run test:ui` (`playwright test`)
 - **Instalar dependencias:** `npm install` (o `npm ci`)

@@ -58,6 +58,7 @@ Para la arquitectura y el mapa de módulos, ver el [README](README.md) (seccione
 | Comando | Qué hace |
 | --- | --- |
 | `npm start` | servidor en `http://localhost:5000` (requiere `SESSION_SECRET` para las rutas de sesión) |
+| `npm run lint` | ESLint sobre todo el repositorio (`eslint.config.mjs`) |
 | `npm test` | `node --test tests/*.test.mjs`, unos 20 s |
 | `npm run test:ui` | Playwright; necesita Chrome, Edge o Chromium |
 | `npm run start:prod` | modo producción: CSP aplicada, HSTS y comprobaciones fatales |

@@ -32,6 +32,9 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Pruebas unitarias
         run: npm test
 

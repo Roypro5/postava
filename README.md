@@ -215,6 +215,7 @@ Nunca hace push ni abre PRs sin permiso. Si cambia una regla, se edita primero
 ```bash
 npm test        # node --test tests/*.test.mjs
 npm run test:ui # Playwright; necesita Chrome/Chromium instalado
+npm run lint    # ESLint sobre todo el repositorio (eslint.config.mjs)
 ```
 
 `npm test` cubre lógica de servidor y estadísticas sin depender del navegador.
@@ -245,7 +246,7 @@ encuentra ninguno, hay que instalar el de Playwright con
 
 El flujo de CI (`.github/workflows/ci.yml`) ejecuta dos jobs en paralelo en cada push a `main` y en cada pull request:
 
-- **`test` (`npm test`)**: pruebas unitarias de servidor, módulos del cliente y comprobación de allowlist bajo Node 22.
+- **`test` (`npm test`)**: comprobación estática con ESLint (`npm run lint`), pruebas unitarias de servidor, módulos del cliente y comprobación de allowlist bajo Node 22.
 - **`ui` (`npm run test:ui`)**: pruebas de interfaz de Playwright sobre Chromium en `ubuntu-latest`. Instala el navegador y las dependencias del sistema con `npx playwright install --with-deps chromium`, corre las especificaciones contra el servidor local con claves ficticias (sin llamadas a Clerk real ni telemetría) y, en caso de fallo, sube `playwright-report/` como artefacto (`actions/upload-artifact@v4`) para depuración.
 
 ## Ajustes
