@@ -157,7 +157,7 @@ test("el servidor no expone código de servidor, manifiestos, pruebas ni documen
     for (const path of [
       "/server.mjs", "/package.json", "/package-lock.json", "/server/stats-store.mjs", "/CLAUDE.md",
       "/tests/timer.test.mjs", "/playwright.config.mjs", "/.env", "/../server.mjs", "/node_modules/express/package.json",
-      "/auth-adapter.js",
+      "/auth-adapter.js", "/LICENSE",
     ]) {
       assert.equal(await get(port, path), 404, path);
     }
