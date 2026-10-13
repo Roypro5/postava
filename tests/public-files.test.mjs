@@ -44,6 +44,24 @@ test("los módulos del cliente registrados en la allowlist se sirven con 200", a
   });
 });
 
+test("las fuentes locales de assets/fonts/ y su licencia registradas en la allowlist se sirven con 200", async () => {
+  await withServer(async (port) => {
+    for (const path of [
+      "/assets/fonts/dm-sans-400.woff2",
+      "/assets/fonts/dm-sans-500.woff2",
+      "/assets/fonts/dm-sans-600.woff2",
+      "/assets/fonts/dm-sans-700.woff2",
+      "/assets/fonts/manrope-600.woff2",
+      "/assets/fonts/manrope-700.woff2",
+      "/assets/fonts/manrope-800.woff2",
+      "/assets/fonts/LICENSE-OFL.txt",
+    ]) {
+      assert.equal(await get(port, path), 200, path);
+    }
+  });
+});
+
+
 /* ── Cierre transitivo de imports ──────────────────────────────────────────
    Si app.js (o cualquier módulo que importe) apunta a un archivo que la allowlist
    de server.mjs no sirve, el navegador recibe un 404 en producción y la página no

@@ -477,6 +477,14 @@ export function createApp({ store = statsStore } = {}) {
     ["/account.js", "account.js"],
     ["/logo.svg", "logo.svg"],
     ["/assets/auth-adapter.bundle.js", "assets/auth-adapter.bundle.js"],
+    ["/assets/fonts/dm-sans-400.woff2", "assets/fonts/dm-sans-400.woff2"],
+    ["/assets/fonts/dm-sans-500.woff2", "assets/fonts/dm-sans-500.woff2"],
+    ["/assets/fonts/dm-sans-600.woff2", "assets/fonts/dm-sans-600.woff2"],
+    ["/assets/fonts/dm-sans-700.woff2", "assets/fonts/dm-sans-700.woff2"],
+    ["/assets/fonts/manrope-600.woff2", "assets/fonts/manrope-600.woff2"],
+    ["/assets/fonts/manrope-700.woff2", "assets/fonts/manrope-700.woff2"],
+    ["/assets/fonts/manrope-800.woff2", "assets/fonts/manrope-800.woff2"],
+    ["/assets/fonts/LICENSE-OFL.txt", "assets/fonts/LICENSE-OFL.txt"],
   ]);
 
   app.get("/", (_req, res) => res.sendFile(resolve(root, "index.html")));
