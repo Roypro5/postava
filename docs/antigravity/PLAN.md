@@ -319,12 +319,13 @@ Restricciones fijas para todo lo de esta fase:
 | T1.1 | Spec `/stats` | ☑ | `8ab3d9e` | Interceptar handshake a clerk.test.invalid hacia /sign-in (9/9 en UI) |
 | T1.2 | Playwright en CI | ☑ | `d3f2b80` | Job `ui` con Chromium en GitHub Actions y documentación en README |
 | T1.3 | Lockfile público | ☑ | `c0a6271` | Lockfile contra npmjs.org, .npmrc, CI con npm ci y docs limpios |
-| F1 | Puerta Fase 1 | ☐ | — | ⛔ usuario (push y PR de chore/fase-1-estabilizar) |
+| F1 | Puerta Fase 1 | ☑ | — | Integrado en PR #3 (chore/fase-2-higiene) |
 | T2.1 | Sacar `auth-adapter.js` de la allowlist | ☑ | `9a17bb4` | Eliminado de publicFiles, tests añadidos (404/200 OK) |
 | T2.2 | ESLint | ☑ | `954a5e3` | Flat config, globals, script lint, paso CI y 0 errores |
 | T2.3 | Fuentes servidas en local | ☑ | `edfa012` | WOFF2 locales, allowlist, CSP estricta 'self', tests OK |
 | T2.4 | `package.json` | ☑ | `5de29cb` | name: postava, private: true, sin main, licencia MIT añadida |
 | T2.5 | Limpieza de Replit | ☑ | `9eeeb91` | Eliminados restos de Replit y maquetas; memoria a docs/auth-verification.md |
 | T2.6 | Documentación única | ☑ | `389d382` | Consolidada en AGENTS.md (fuente única de verdad), enlaces en CLAUDE.md y README |
+| F2 | Puerta Fase 2 | ☑ | — | Push de chore/fase-2-higiene y PR #3 abierto |
 | T3.1 | Esquema vs `pg_dump` | ☐ | | ⛔ usuario |
 | T3.2 | Webhook de Clerk | ☐ | | ⛔ |
