@@ -324,7 +324,7 @@ Restricciones fijas para todo lo de esta fase:
 | T2.2 | ESLint | ☑ | `954a5e3` | Flat config, globals, script lint, paso CI y 0 errores |
 | T2.3 | Fuentes servidas en local | ☑ | `edfa012` | WOFF2 locales, allowlist, CSP estricta 'self', tests OK |
 | T2.4 | `package.json` | ☑ | `5de29cb` | name: postava, private: true, sin main, licencia MIT añadida |
-| T2.5 | Limpieza de Replit | ☐ | | ⛔ |
+| T2.5 | Limpieza de Replit | ☑ | `9eeeb91` | Eliminados restos de Replit y maquetas; memoria a docs/auth-verification.md |
 | T2.6 | Documentación única | ☐ | | |
 | T3.1 | Esquema vs `pg_dump` | ☐ | | ⛔ usuario |
 | T3.2 | Webhook de Clerk | ☐ | | ⛔ |
