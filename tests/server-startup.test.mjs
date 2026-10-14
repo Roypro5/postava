@@ -306,7 +306,7 @@ test("`node server.mjs` con NODE_ENV=production y un SESSION_SECRET corto sale c
   assert.ok(!result.stderr.includes("corto"), "no debe imprimir el valor del secreto");
 });
 
-/* ── Modo producción: --production y REPLIT_DEPLOYMENT ───────────────────── */
+/* ── Modo producción: --production y NODE_ENV ────────────────────────────── */
 
 test("applyProductionMode: --production fija NODE_ENV=production, también si venía otro valor", () => {
   for (const initial of [undefined, "", "  ", "production"]) {
@@ -346,36 +346,12 @@ test("applyProductionMode: puerto y --production válidos no avisan; un typo jun
   assert.equal(env.NODE_ENV, "production");
 });
 
-test("applyProductionMode: sin flag ni despliegue de Replit no toca el entorno ni avisa", () => {
-  for (const env of [{}, { NODE_ENV: "development" }, { REPLIT_DEPLOYMENT: "0" }, { REPLIT_DEPLOYMENT: "true" }]) {
+test("applyProductionMode: sin flag no toca el entorno ni avisa", () => {
+  for (const env of [{}, { NODE_ENV: "development" }]) {
     const before = { ...env };
     assert.deepEqual(applyProductionMode({ argv: ["5000"], env }), []);
     assert.deepEqual(env, before);
   }
-});
-
-test("applyProductionMode: REPLIT_DEPLOYMENT=1 sin NODE_ENV se trata como producción y avisa en voz alta", () => {
-  for (const blank of [undefined, "", "  "]) {
-    const env = { REPLIT_DEPLOYMENT: "1" };
-    if (blank !== undefined) env.NODE_ENV = blank;
-    const warnings = applyProductionMode({ argv: [], env });
-    assert.equal(env.NODE_ENV, "production", JSON.stringify(blank));
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /REPLIT_DEPLOYMENT=1/);
-    assert.match(warnings[0], /PRODUCTION/);
-  }
-});
-
-test("applyProductionMode: en un despliegue de Replit un NODE_ENV explícito se respeta (con aviso si no es production)", () => {
-  const dev = { REPLIT_DEPLOYMENT: "1", NODE_ENV: "development" };
-  const warnings = applyProductionMode({ argv: [], env: dev });
-  assert.equal(dev.NODE_ENV, "development");
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /WITHOUT production hardening/);
-
-  const prod = { REPLIT_DEPLOYMENT: "1", NODE_ENV: "production" };
-  assert.deepEqual(applyProductionMode({ argv: [], env: prod }), []);
-  assert.equal(prod.NODE_ENV, "production");
 });
 
 test("package.json: start:prod arranca con --production y start sigue igual", () => {
@@ -388,7 +364,6 @@ test("package.json: start:prod arranca con --production y start sigue igual", ()
 function runWeakSecretServer(args, env) {
   const cleanEnv = { ...process.env, SESSION_SECRET: "corto", CLERK_SECRET_KEY: CLERK_KEY, CLERK_TELEMETRY_DISABLED: "1" };
   delete cleanEnv.NODE_ENV;
-  delete cleanEnv.REPLIT_DEPLOYMENT;
   return spawnSync(process.execPath, ["server.mjs", ...args], {
     cwd: new URL("../", import.meta.url),
     env: { ...cleanEnv, ...env },
@@ -406,13 +381,4 @@ test("`node server.mjs <puerto> --production` (y con el flag primero) activa pro
     assert.match(result.stderr, /Refusing to start/);
     assert.doesNotMatch(result.stdout, /listening/);
   }
-});
-
-test("`node server.mjs` con REPLIT_DEPLOYMENT=1 y sin NODE_ENV avisa y aplica las comprobaciones de producción", () => {
-  const result = runWeakSecretServer(["54872"], { REPLIT_DEPLOYMENT: "1" });
-  assert.equal(result.error, undefined, String(result.error));
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /REPLIT_DEPLOYMENT=1 and NODE_ENV is not set/);
-  assert.match(result.stderr, /SESSION_SECRET is too short/);
-  assert.doesNotMatch(result.stdout, /listening/);
 });

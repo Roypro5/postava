@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 // playwright.config.mjs fija POSTAVA_MOCK_CLERK=1 solo con las claves ficticias locales
-// (sin TEST_BASE_URL, Replit ni CLERK_PUBLISHABLE_KEY propia). En ese caso no hay proveedor
+// (sin TEST_BASE_URL ni CLERK_PUBLISHABLE_KEY propia). En ese caso no hay proveedor
 // real al que llegar: se sustituyen /api/auth/config y el bundle del adaptador, sin red a
 // Clerk ni cuentas reales. Con un entorno real se comprueba la inicialización de verdad.
 const mockClerk = process.env.POSTAVA_MOCK_CLERK === "1";

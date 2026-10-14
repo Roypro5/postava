@@ -72,11 +72,7 @@ export function isLowEntropySessionSecret(secret) {
  * enough). Sets env.NODE_ENV = "production" when:
  *  - the `--production` flag is on the command line (`npm run start:prod`, a
  *    portable replacement for `NODE_ENV=production node ...`, which cmd.exe
- *    does not understand), or
- *  - NODE_ENV is unset and REPLIT_DEPLOYMENT === "1" (a Replit deployment, where
- *    nothing sets NODE_ENV for us). That inference is announced loudly.
- * An explicit NODE_ENV is never overridden by the Replit inference: a deployment
- * that sets NODE_ENV=development on purpose gets a warning, not a silent change.
+ *    does not understand).
  * Returns the warnings to print.
  */
 export function applyProductionMode({ argv = process.argv.slice(2), env = process.env } = {}) {
@@ -99,20 +95,6 @@ export function applyProductionMode({ argv = process.argv.slice(2), env = proces
       );
     }
     env.NODE_ENV = "production";
-  } else if (env.REPLIT_DEPLOYMENT === "1") {
-    if (!explicit) {
-      env.NODE_ENV = "production";
-      warnings.push(
-        "REPLIT_DEPLOYMENT=1 and NODE_ENV is not set: running in PRODUCTION mode " +
-          "(enforced CSP, HSTS, Clerk proxy, fatal SESSION_SECRET checks). " +
-          "Set NODE_ENV=production or start with `npm run start:prod` to make it explicit.",
-      );
-    } else if (env.NODE_ENV !== "production") {
-      warnings.push(
-        `REPLIT_DEPLOYMENT=1 but NODE_ENV=${JSON.stringify(env.NODE_ENV)}: this deployment runs WITHOUT ` +
-          "production hardening (CSP is Report-Only, no HSTS, Clerk proxy off, weak SESSION_SECRET is not fatal).",
-      );
-    }
   }
   return warnings;
 }

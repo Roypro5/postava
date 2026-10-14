@@ -162,7 +162,6 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 | `CLERK_PUBLISHABLE_KEY` / `VITE_CLERK_PUBLISHABLE_KEY` | clave pública de Clerk para el cliente |
 | `VITE_CLERK_PROXY_URL` | URL del proxy de Clerk que usa el adaptador empaquetado; en producción debe ser `https://<tu-dominio>/api/__clerk`. Si queda vacía, clerk-js habla directamente con el host de la clave pública y la CSP de producción debe permitirlo: comprueba el login con la CSP activa antes de publicar |
 | `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. Si no está definido o tiene otro valor, corre en modo desarrollo |
-| `REPLIT_DEPLOYMENT` | opcional (`1`); compatibilidad heredada que infiere producción si `NODE_ENV` no está definido |
 | `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGPORT` | conexión de `pg` (`new Pool()` sin argumentos; `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | clave de firma Svix para verificar webhooks de Clerk (`POST /api/webhooks/clerk`) y procesar eventos `user.deleted` automáticamente |
 

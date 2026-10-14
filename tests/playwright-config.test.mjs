@@ -31,7 +31,6 @@ const ENV_KEYS = [
   "TEST_BASE_URL",
   "TEST_PORT",
   "TEST_REUSE_SERVER",
-  "REPLIT_DEV_DOMAIN",
   "CHROMIUM_PATH",
   "CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
@@ -98,13 +97,6 @@ test("TEST_BASE_URL: no se arranca servidor local y se usa el proveedor real", n
   assert.equal(config.use.baseURL, "http://127.0.0.1:9999");
 });
 
-test("Replit (REPLIT_DEV_DOMAIN): proveedor real, sin servidor local y URL pública", needsPlaywright, async () => {
-  const { config, mockClerk } = await loadConfig({ REPLIT_DEV_DOMAIN: "postava.example.repl.co" });
-  assert.equal(mockClerk, "0");
-  assert.equal(config.webServer, undefined);
-  assert.equal(config.use.baseURL, "https://postava.example.repl.co");
-});
-
 test("CLERK_PUBLISHABLE_KEY y CLERK_SECRET_KEY propias (desarrollo): se pasan al servidor y no se mockea", needsPlaywright, async () => {
   const { config, mockClerk } = await loadConfig({
     CLERK_PUBLISHABLE_KEY: "pk_test_clave-de-desarrollo-del-usuario",
@@ -141,7 +133,7 @@ test("CHROMIUM_PATH tiene prioridad al elegir el navegador", needsPlaywright, as
   assert.equal(config.use.launchOptions.executablePath, "C:\\ruta\\a\\otro-chromium.exe");
 });
 
-// 4b: --no-proxy-server solo con URL base local; con servidor remoto o Replit el navegador necesita el proxy del sistema.
+// 4b: --no-proxy-server solo con URL base local; con servidor remoto el navegador necesita el proxy del sistema.
 for (const [name, env] of [
   ["servidor local por defecto", {}],
   ["TEST_PORT local", { TEST_PORT: "5123" }],
@@ -163,7 +155,6 @@ for (const [name, env] of [
   ["dominio que solo empieza por localhost", { TEST_BASE_URL: "https://localhost.evil.example" }],
   ["dominio que solo empieza por 127.0.0.1", { TEST_BASE_URL: "http://127.0.0.1.nip.io:5000" }],
   ["TEST_BASE_URL que no es una URL", { TEST_BASE_URL: "esto no es una url" }],
-  ["Replit", { REPLIT_DEV_DOMAIN: "postava.example.repl.co" }],
 ]) {
   test(`--no-proxy-server NO se aplica con URL base remota: ${name}`, needsPlaywright, async () => {
     const { config } = await loadConfig({ ...env, CHROMIUM_PATH: "chromium-de-prueba" });
