@@ -143,13 +143,13 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 - En `/stats`, la sección **Privacidad** permite «Borrar todas mis estadísticas»
   (`DELETE /api/stats`, con confirmación, Clerk + cookie de presencia y
   5 peticiones/minuto). El Pomodoro sigue funcionando igual.
-- **Retención:** la purga es manual. `psql -f db/purge-old.sql` borra las sesiones
-  de más de 400 días. Para los datos de un usuario de Clerk eliminado, usa
-  `db/delete-user.sql` (un webhook de Clerk que lo automatice queda para más
-  adelante).
-- **Esquema:** `db/schema.sql` y `db/migrations/` (deducidos del código,
-  pendientes de conciliar con `pg_dump` de la BD real) se aplican a mano; el
-  servidor nunca ejecuta DDL.
+- **Retención:** la purga por antigüedad es manual (`psql -f db/purge-old.sql`
+  borra las sesiones de más de 400 días). Para un usuario de Clerk eliminado,
+  Postava procesa automáticamente el webhook `user.deleted` en
+  `POST /api/webhooks/clerk` (y `db/delete-user.sql` queda como respaldo manual).
+- **Esquema:** `db/schema.sql` y `db/migrations/0001_initial.sql` constituyen el
+  esquema canónico inicial y se aplican a mano (mediante `psql` o desde el editor
+  SQL web de Neon); el servidor nunca ejecuta DDL.
 
 ## Variables de entorno
 
@@ -162,7 +162,8 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 | `CLERK_PUBLISHABLE_KEY` / `VITE_CLERK_PUBLISHABLE_KEY` | clave pública de Clerk para el cliente |
 | `VITE_CLERK_PROXY_URL` | URL del proxy de Clerk que usa el adaptador empaquetado; en producción debe ser `https://<tu-dominio>/api/__clerk`. Si queda vacía, clerk-js habla directamente con el host de la clave pública y la CSP de producción debe permitirlo: comprueba el login con la CSP activa antes de publicar |
 | `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. Si no está definido o tiene otro valor, corre en modo desarrollo |
-| `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGPORT` | conexión de `pg` (`new Pool()` sin argumentos; `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
+| `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPORT` | conexión estándar de PostgreSQL para `pg` (`new Pool()` sin argumentos; el servidor lee exclusivamente variables `PG*` y `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
+| `PGSSLMODE` | modo SSL para la conexión de PostgreSQL vía `pg` (obligatorio con valor `require` en Neon y la mayoría de proveedores gestionados en la nube) |
 | `CLERK_WEBHOOK_SIGNING_SECRET` | clave de firma Svix para verificar webhooks de Clerk (`POST /api/webhooks/clerk`) y procesar eventos `user.deleted` automáticamente |
 
 Ninguna de estas variables debe imprimirse ni commitearse con su valor real.

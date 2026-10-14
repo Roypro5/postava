@@ -25,18 +25,61 @@ Decisión de índice: `(user_id, started_at)` en vez de `(user_id, created_at DE
 porque las consultas reales (`getStats` y el límite diario) filtran y ordenan por
 `started_at`. Postgres recorre un índice ascendente hacia atrás sin coste extra.
 
-## Aplicar en la base de datos de desarrollo
+## Variables de conexión y el servidor
 
-1. Comprueba que las variables `PG*` / `DATABASE_URL` apuntan a la base de **desarrollo**.
-2. Si la tabla aún no existe:
-   ```sh
-   export PGHOST=... PGUSER=... PGPASSWORD=... PGDATABASE=... PGPORT=5432
-   psql -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
-   # o bien con DATABASE_URL si está definida:
-   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
+El servidor de Postava (`server/stats-store.mjs`) utiliza `node-postgres` (`pg`),
+el cual lee **exclusivamente** las variables de entorno estándar `PG*`:
+
+- `PGHOST`
+- `PGUSER`
+- `PGPASSWORD`
+- `PGDATABASE`
+- `PGPORT` (por defecto `5432`)
+- `PGSSLMODE` (debe ser `require` en Neon y en cualquier base de datos gestionada con TLS/SSL)
+
+> **Importante:** El servidor **no lee** `DATABASE_URL`. Esta variable solo sirve
+> para herramientas externas o para lanzar `psql` a mano. En producción (por ejemplo,
+> en Render), cada variable `PG*` debe configurarse individualmente en el panel.
+
+## Aplicar el esquema (migración `0001_initial.sql`)
+
+### Opción A · Desde el editor SQL web de Neon (sin instalar `psql`)
+
+1. Accede a la consola de Neon (<https://console.neon.tech>) y abre tu proyecto.
+2. Selecciona la rama correspondiente (`dev` para desarrollo o `main` para producción).
+3. Entra en la pestaña **SQL Editor** del menú lateral.
+4. Abre en tu editor el fichero [`db/migrations/0001_initial.sql`](migrations/0001_initial.sql).
+5. Copia el bloque **Up** (o todo el contenido del fichero, ya que el bloque Down está comentado).
+6. Pégalo en el editor SQL de Neon y pulsa **Run** (o `Ctrl+Enter`).
+7. Comprueba la creación de la tabla ejecutando:
+   ```sql
+   SELECT column_name, data_type
+   FROM information_schema.columns
+   WHERE table_name = 'posture_stats_sessions';
    ```
-   (el fichero contiene el Down comentado; solo se ejecuta el Up).
-3. Si ya existe, concilia primero con `pg_dump` (arriba) y no ejecutes el Up.
+   (deben aparecer las 10 columnas definidas en [`db/schema.sql`](schema.sql)).
+
+### Opción B · Desde la terminal con `psql`
+
+1. Comprueba que las variables `PG*` / `DATABASE_URL` apuntan a la base de **desarrollo** o **producción**.
+2. Si la tabla aún no existe:
+   - **En Bash / Git Bash / macOS / Linux:**
+     ```sh
+     export PGHOST="..." PGUSER="..." PGPASSWORD="..." PGDATABASE="..." PGPORT="5432" PGSSLMODE="require"
+     psql -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
+     # o bien con DATABASE_URL si está definida (Neon incluye ?sslmode=require):
+     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
+     ```
+   - **En PowerShell (Windows):**
+     ```powershell
+     $env:PGHOST="..."; $env:PGUSER="..."; $env:PGPASSWORD="..."; $env:PGDATABASE="..."; $env:PGPORT="5432"; $env:PGSSLMODE="require"
+     psql -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
+     # o bien con DATABASE_URL si está definida:
+     psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
+     ```
+   *(Nota: entrecomilla siempre los valores, especialmente contraseñas con caracteres especiales).*
+   (El fichero contiene el Down comentado; solo se ejecuta el Up).
+3. Si ya existía una tabla previa, concilia primero con `pg_dump` (arriba) y no ejecutes el Up sin verificar.
 
 Revertir (destructivo, borra todas las estadísticas): descomenta y ejecuta el
 bloque Down de la migración.
