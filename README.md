@@ -164,7 +164,7 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 | `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. Si no está definido o tiene otro valor, corre en modo desarrollo |
 | `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPORT` | conexión estándar de PostgreSQL para `pg` (`new Pool()` sin argumentos; el servidor lee exclusivamente variables `PG*` y `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
 | `PGSSLMODE` | modo SSL para la conexión de PostgreSQL vía `pg` (obligatorio con valor `require` en Neon y la mayoría de proveedores gestionados en la nube) |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | clave de firma Svix para verificar webhooks de Clerk (`POST /api/webhooks/clerk`) y procesar eventos `user.deleted` automáticamente |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | clave de firma Svix para verificar webhooks de Clerk (`POST /api/webhooks/clerk`). En el panel de Clerk (Webhooks) se crea un endpoint `https://<dominio>/api/webhooks/clerk` suscrito solo al evento `user.deleted` (los demás eventos se ignoran y el cuerpo admite como máximo 32 KB) |
 
 Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
 

@@ -106,7 +106,10 @@ psql -v ON_ERROR_STOP=1 -f db/purge-old.sql
 Postava procesa automáticamente el webhook `user.deleted` de Clerk en
 `POST /api/webhooks/clerk` (verificado mediante firma criptográfica Svix con
 `CLERK_WEBHOOK_SIGNING_SECRET`), borrando todas las sesiones del usuario de forma
-idempotente.
+idempotente. En el panel de Clerk (Webhooks) se crea un endpoint
+`https://<dominio>/api/webhooks/clerk` suscrito **solo** al evento `user.deleted`.
+Los demás eventos se ignoran (200 OK) y el cuerpo de la petición admite como
+máximo 32 KB.
 
 Para borrado manual (fallback o emergencias):
 

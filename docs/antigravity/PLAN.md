@@ -445,6 +445,8 @@ configuración y la documentación).
 5. Cero violaciones de CSP en la consola; cabeceras HSTS y CSP presentes.
 6. `npm run test:ui` con `TEST_BASE_URL=https://<app>.onrender.com`. Con URL remota los specs
    usan el Clerk real, sin crear cuentas ni enviar correos (regla 7).
+7. Webhook: desde el panel de Clerk, *Send test event* de `user.deleted` a
+   `https://<app>.onrender.com/api/webhooks/clerk` → 200; con una firma inválida → 400.
 
 **Hecho cuando:** todos los puntos se cumplen y los resultados quedan anotados en la tabla de
 seguimiento.

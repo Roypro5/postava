@@ -17,6 +17,7 @@ import {
 // 32 bytes con variedad de sobra (un secreto "s".repeat(32) mide lo mismo pero ya no vale: ver la prueba de entropía).
 const GOOD_SECRET = "Xk3-9fQmZ2vB8rLwT5nYc7HdJ4pAeU1s";
 const CLERK_KEY = "sk_test_placeholder_not_a_real_key";
+const WEBHOOK_KEY = "whsec_test_placeholder_not_a_real_secret";
 
 test("el mínimo del secreto de sesión son 32 bytes", () => {
   assert.equal(MIN_SESSION_SECRET_BYTES, 32);
@@ -25,7 +26,12 @@ test("el mínimo del secreto de sesión son 32 bytes", () => {
 
 test("producción con la configuración correcta arranca sin errores ni avisos", () => {
   const result = checkStartupConfig({
-    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_SECRET_KEY: CLERK_KEY },
+    env: {
+      NODE_ENV: "production",
+      SESSION_SECRET: GOOD_SECRET,
+      CLERK_SECRET_KEY: CLERK_KEY,
+      CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+    },
   });
   assert.deepEqual(result, { errors: [], warnings: [] });
 });
@@ -73,7 +79,7 @@ test("fuera de producción un secreto ausente o corto solo genera un aviso", () 
 
 test("producción sin CLERK_SECRET_KEY avisa (el proxy de Clerk queda desactivado) pero no impide arrancar", () => {
   const { errors, warnings } = checkStartupConfig({
-    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET },
+    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY },
   });
   assert.deepEqual(errors, []);
   assert.equal(warnings.length, 1);
@@ -89,10 +95,53 @@ test("producción sin CLERK_SECRET_KEY avisa (el proxy de Clerk queda desactivad
   // Una clave vacía o en blanco cuenta como no configurada, igual que en server.mjs y en el proxy de Clerk.
   for (const blank of ["", " ", "   ", "\n", "\t \n"]) {
     const result = checkStartupConfig({
-      env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_SECRET_KEY: blank },
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: GOOD_SECRET,
+        CLERK_SECRET_KEY: blank,
+        CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+      },
     });
     assert.equal(result.warnings.length, 1, JSON.stringify(blank));
   }
+});
+
+test("producción sin CLERK_WEBHOOK_SIGNING_SECRET avisa (webhook desconfigurado) pero no impide arrancar", () => {
+  const { errors, warnings } = checkStartupConfig({
+    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_SECRET_KEY: CLERK_KEY },
+  });
+  assert.deepEqual(errors, []);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /CLERK_WEBHOOK_SIGNING_SECRET/);
+  assert.match(warnings[0], /\/api\/webhooks\/clerk/);
+  assert.match(warnings[0], /503 WEBHOOK_UNCONFIGURED/);
+  assert.match(warnings[0], /db\/delete-user\.sql/);
+
+  // Una clave vacía o en blanco cuenta como no configurada.
+  for (const blank of ["", " ", "   ", "\n", "\t \n"]) {
+    const result = checkStartupConfig({
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: GOOD_SECRET,
+        CLERK_SECRET_KEY: CLERK_KEY,
+        CLERK_WEBHOOK_SIGNING_SECRET: blank,
+      },
+    });
+    assert.equal(result.warnings.length, 1, JSON.stringify(blank));
+  }
+});
+
+test("producción con CLERK_WEBHOOK_SIGNING_SECRET configurada no genera aviso de webhook", () => {
+  const { errors, warnings } = checkStartupConfig({
+    env: {
+      NODE_ENV: "production",
+      SESSION_SECRET: GOOD_SECRET,
+      CLERK_SECRET_KEY: CLERK_KEY,
+      CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+    },
+  });
+  assert.deepEqual(errors, []);
+  assert.deepEqual(warnings, []);
 });
 
 /* ── Secretos de ejemplo del repositorio ─────────────────────────────────────
@@ -126,7 +175,12 @@ test("producción rechaza como SESSION_SECRET los valores de ejemplo del reposit
   for (const [origin, secret] of examples) {
     assert.ok(Buffer.byteLength(secret, "utf8") >= MIN_SESSION_SECRET_BYTES, `${origin}: el ejemplo ya supera la longitud mínima`);
     const { errors, warnings } = checkStartupConfig({
-      env: { NODE_ENV: "production", SESSION_SECRET: secret, CLERK_SECRET_KEY: CLERK_KEY },
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: secret,
+        CLERK_SECRET_KEY: CLERK_KEY,
+        CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+      },
     });
     assert.equal(errors.length, 1, origin);
     assert.match(errors[0], /SESSION_SECRET/, origin);
@@ -205,7 +259,12 @@ test("producción rechaza un SESSION_SECRET de longitud suficiente pero sin vari
   for (const [label, secret] of Object.entries(LOW_ENTROPY)) {
     assert.ok(Buffer.byteLength(secret, "utf8") >= MIN_SESSION_SECRET_BYTES, `${label}: cumple la longitud, así que solo lo detiene la entropía`);
     const { errors, warnings } = checkStartupConfig({
-      env: { NODE_ENV: "production", SESSION_SECRET: secret, CLERK_SECRET_KEY: CLERK_KEY },
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: secret,
+        CLERK_SECRET_KEY: CLERK_KEY,
+        CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+      },
     });
     assert.equal(errors.length, 1, label);
     assert.match(errors[0], /SESSION_SECRET/, label);

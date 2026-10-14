@@ -147,5 +147,14 @@ export function checkStartupConfig({
     );
   }
 
+  const webhookSecret = env.CLERK_WEBHOOK_SIGNING_SECRET;
+  if (isProduction && (typeof webhookSecret !== "string" || webhookSecret.trim() === "")) {
+    warnings.push(
+      "CLERK_WEBHOOK_SIGNING_SECRET is not set: POST /api/webhooks/clerk answers 503 " +
+        "WEBHOOK_UNCONFIGURED and deleted Clerk accounts will not be cleaned up " +
+        "automatically. Use db/delete-user.sql to delete user data manually.",
+    );
+  }
+
   return { errors, warnings };
 }

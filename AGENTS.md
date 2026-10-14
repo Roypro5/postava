@@ -21,7 +21,10 @@ Para la arquitectura y el mapa de módulos, ver el [README](README.md) (seccione
 3. **Identidad en el servidor.** El `user_id` sale solo del contexto verificado de Clerk
    en el servidor, nunca de query, params ni body.
 4. **Doble validación.** Toda ruta privada exige el token de Clerk **y** la cookie de
-   presencia firmada (`SESSION_SECRET`).
+   presencia firmada (`SESSION_SECRET`). Excepción: `POST /api/webhooks/clerk` es una
+   llamada de servidor a servidor desde Clerk, se autentica con la firma Svix
+   (`CLERK_WEBHOOK_SIGNING_SECRET`) y no lleva token de usuario ni cookie de presencia;
+   el `user_id` sale solo del evento firmado.
 5. **Allowlist estricta.** Nunca exponer directorios. Cada fichero público nuevo se
    registra en `publicFiles` de `server.mjs`; `tests/public-files.test.mjs` lo comprueba.
 6. **Cero DDL al arrancar.** Los cambios de esquema son scripts de `db/migrations/`
