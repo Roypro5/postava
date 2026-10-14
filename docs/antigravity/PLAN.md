@@ -491,7 +491,7 @@ y abrir el PR.
 | T3.2 | Webhook de Clerk | ☑ | `51c3f56` | Webhook user.deleted verificado con Svix HMAC nativo, idempotente y con rate limit |
 | T5.1 | Restos de Replit en el código | ☑ | `9b91c49` | Eliminado REPLIT_DEPLOYMENT/REPLIT_DEV_DOMAIN, tests ajustados y cero referencias |
 | T5.2 | Documentación de la BD | ☑ | `5eed775` | Documentadas variables PG*, PGSSLMODE=require y aplicación en Neon web/psql |
-| T5.3 | BD en Neon | ☐ | | ⛔ La crea el usuario |
+| T5.3 | BD en Neon | ☑ | — | Creada en Neon (PG 16, AWS us-east-2), ramas main y dev, esquema 0001_initial verificado |
 | T5.4 | Test de integración con PostgreSQL | ☐ | | Opcional, `PG_INTEGRATION=1` |
 | T5.5 | Despliegue en Render | ☐ | | ⛔ |
 | T5.6 | Verificación del despliegue | ☐ | | |
