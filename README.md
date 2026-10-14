@@ -188,13 +188,16 @@ Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
 
 ## Desarrollo con agentes (Antigravity / Claude Code)
 
-El proyecto se puede desarrollar con agentes de IA. Cada IDE lee su propio fichero de
-reglas, y los dos dicen lo mismo:
+El proyecto se puede desarrollar con agentes de IA. [`AGENTS.md`](AGENTS.md) es la
+**fuente única de verdad** para las reglas del proyecto (reglas no negociables, límites
+entre módulos, entorno, comandos, cuándo una tarea está terminada y qué exige permiso).
+[`CLAUDE.md`](CLAUDE.md) enlaza a ella para las directrices operativas y aporta la matriz
+de subagentes y el flujo de trabajo recomendados para Claude Code.
 
 | Fichero | Lo lee | Para qué |
 | --- | --- | --- |
-| [`AGENTS.md`](AGENTS.md) | Antigravity (y otros agentes compatibles) | reglas que no se negocian, entorno, cuándo una tarea está terminada y qué exige permiso |
-| [`CLAUDE.md`](CLAUDE.md) + `.claude/agents/` | Claude Code | las mismas reglas y la matriz de subagentes de Claude |
+| [`AGENTS.md`](AGENTS.md) | Antigravity, Claude Code y otros agentes | **fuente única de verdad**: reglas que no se negocian, límites de módulos, entorno, comandos, cuándo una tarea está terminada y qué exige permiso |
+| [`CLAUDE.md`](CLAUDE.md) + `.claude/agents/` | Claude Code | guía de subagentes y flujo de trabajo para Claude Code; enlaza a `AGENTS.md` para las reglas y al `README.md` para la arquitectura |
 | `.agents/agents/` | Antigravity | subagentes de Antigravity, portados desde `.claude/agents/` (los crea la tarea T0.2 del plan) |
 | [`docs/antigravity/AUDITORIA.md`](docs/antigravity/AUDITORIA.md) | personas y agentes | estado del proyecto a 2026-10-07 y hallazgos priorizados |
 | [`docs/antigravity/PLAN.md`](docs/antigravity/PLAN.md) | personas y agentes | plan por fases con tareas, subagentes, criterios de «hecho cuando» y tabla de seguimiento |
@@ -207,8 +210,8 @@ reglas, y los dos dicen lo mismo:
 3. El agente instala sus subagentes (Fase 0), ejecuta el plan tarea a tarea con un
    commit por tarea y se para en cada puerta ⛔ para pedir tu OK.
 
-Nunca hace push ni abre PRs sin permiso. Si cambia una regla, se edita primero
-`AGENTS.md` y después `CLAUDE.md`.
+Nunca hace push ni abre PRs sin permiso. Las reglas del proyecto se mantienen
+exclusivamente en [`AGENTS.md`](AGENTS.md).
 
 ## Tests
 

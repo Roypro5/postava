@@ -1,64 +1,42 @@
 # Postava — Contrato de Desarrollo y Guía de Agentes
 
-Este archivo es la guía maestra para **Claude Code**. Describe la arquitectura del proyecto, las reglas no negociables y el catálogo de subagentes especializados disponibles en `.claude/agents/` para planear, refactorizar, optimizar y desarrollar nuevas funciones.
+Este archivo es la guía para **Claude Code**. Describe el catálogo de subagentes especializados disponibles en `.claude/agents/` y el flujo de trabajo recomendado para el desarrollo.
+
+> **Fuente única de verdad:** Las reglas del proyecto, los límites entre módulos, el entorno y los comandos están centralizados exclusivamente en [`AGENTS.md`](AGENTS.md). Para la visión general, la arquitectura técnica y el mapa de módulos, consulta el [`README.md`](README.md). Cualquier cambio en las reglas debe realizarse exclusivamente en `AGENTS.md`.
 
 ---
 
 ## 1. Visión y Arquitectura del Proyecto
 
-**Postava** es un Pomodoro con corrección de postura en tiempo real que se ejecuta en el navegador.
+Para la descripción general del proyecto, el stack tecnológico, los ficheros y el mapa de dependencias entre módulos, consulta directamente el [`README.md`](README.md):
 
-- **Frontend:** Vanilla JavaScript con módulos ES nativos (`<script type="module">`), HTML5 semántico y CSS3 moderno con variables. [`app.js`](app.js) ya no es un monolito: es solo el punto de entrada y cableado (cerca de 600 líneas), que instancia los módulos de abajo y conecta sus callbacks.
-- **Visión por Computador:** MediaPipe `PoseLandmarker` (`@mediapipe/tasks-vision@0.10.14`) cargado vía CDN (jsDelivr) con `import()` dinámico desde `app.js` (si la CDN falla, el temporizador sigue funcionando) y modelos WASM en cliente.
-- **Métricas de Postura:** Calculadas en [`posture.js`](posture.js) (`neck`, `width`, `tilt`, `side`, `chin`, `shoulderY`) normalizadas por el ancho de los hombros.
-- **Backend:** Node.js con Express 5 (`server.mjs`). Sirve archivos estáticos con **allowlist**, proxy de Clerk y API de sesiones.
-- **Autenticación:** Clerk opcional (`login.html`, `login.js`, `account.js`, `auth-adapter.js`). El adaptador se compila con esbuild al levantar el servidor.
-- **Base de Datos:** PostgreSQL con la librería nativa `pg` (`server/stats-store.mjs`).
-- **Pruebas:** `node:test` (`tests/*.test.mjs`) y Playwright (`tests/*.spec.mjs`).
-
-### Mapa de módulos del cliente (página principal)
-
-Sin ciclos de importación. Las dependencias laterales no se importan: se inyectan desde `app.js` (por ejemplo, `posture-monitor.js` recibe `timer`, `focusStats` e `isCameraOn`; `ui.js` recibe `el`).
-
-- `dom.js`: referencias a los elementos del DOM (`el`, `ctx`), sin lógica. Solo lo importa `app.js`.
-- `ui.js`: render puro de la interfaz; no conoce timer, cámara, postura, estadísticas ni red.
-- `timer.js`: máquina de fases enfoque/descanso basada en `endAt` (sin deriva); no conoce DOM, cámara, sonido, estadísticas ni red, solo callbacks.
-- `focus-stats.js`: métricas del bloque de enfoque en curso; sin DOM ni red, reloj inyectable.
-- `camera.js` + `camera-utils.js`: adquisición y liberación del stream, con cancelación de arranques concurrentes; devuelve resultados tipificados, no genera texto de UI ni toca `document`.
-- `posture.js`: lógica pura de métricas, umbrales y calibración; sin DOM ni estado global.
-- `posture-monitor.js`: MediaPipe (`WASM_BASE`, `MODEL_URL`), bucle de inferencia, calibración y avisos. No toca DOM ni hace peticiones propias; los landmarks nunca salen de él (solo a `posture.js` y `overlay.js`).
-- `overlay.js`: dibujo del canvas (esqueleto, HUD, modo mapa, `COLORS`); recibe `ctx` y estado, sin DOM ni estado global.
-- `sound.js`: tonos WebAudio; no conoce DOM, timer ni ajustes.
-- `notifications.js`: textos y reglas de las notificaciones del sistema; no toca el DOM (el entorno se inyecta).
-- `settings.js`: persistencia de ajustes en `localStorage` (`postava.v1`); sin DOM ni timer.
-- `stats-session.js`: reglas puras del bloque completado (cuenta, payload agregado, clasificación de errores de envío).
-- `stats-queue.js`: cola de envío por cuenta con reintentos; único módulo de la página principal que envía datos al servidor (`POST /api/stats/sessions`), con dependencias inyectadas.
-- `stats-math.js`: cálculos puros del panel de estadísticas (usado por `stats.js`).
-- Resto de páginas y cuenta: `theme-init.js` (tema antes del primer pintado, externo y síncrono en el `<head>`: la CSP de producción prohíbe scripts en línea), `theme.js` (tema), `account.js` (botón de sesión en la cabecera), `login.js`, `stats.js` y `auth-adapter.js` (Clerk, se compila a `assets/auth-adapter.bundle.js`).
-- Tolerancia a fallos: MediaPipe y el bundle de auth se importan con `import()` dinámico desde `app.js`; si fallan, el temporizador sigue en modo anónimo.
-- Todo módulo público nuevo debe registrarse en la allowlist de `server.mjs` (regla 5); `tests/public-files.test.mjs` lo comprueba recorriendo los imports.
+- [Requisitos y Puesta en marcha](README.md#requisitos)
+- [Cómo funciona la detección de postura](README.md#cómo-funciona-la-detección)
+- [Cuentas, estadísticas y privacidad](README.md#cuentas-y-estadísticas-opcional)
+- [Ficheros del proyecto](README.md#ficheros)
+- [Dependencias entre módulos del cliente](README.md#dependencias-entre-módulos)
+- [Notas de diseño](README.md#notas-de-diseño)
 
 ---
 
-## 2. Reglas Inquebrantables (Non-Negotiables)
+## 2. Reglas Inquebrantables y Límites de Módulos
 
-1. **Privacidad de la Cámara:** El vídeo y las coordenadas espaciales de MediaPipe **nunca** salen del navegador. Al servidor solo viajan métricas agregadas y redondeadas (duración, porcentajes, conteos).
-2. **Uso Anónimo Garantizado:** El Pomodoro y la detección de postura funcionan siempre sin cuenta. Ninguna funcionalidad principal del temporizador puede exigir inicio de sesión.
-3. **Validación de Identidad en Servidor:** El `user_id` de las estadísticas se obtiene exclusivamente del contexto verificado de Clerk en el servidor, **nunca** de querystrings, parámetros o el body del request.
-4. **Doble Validación en Rutas Privadas:** Toda ruta privada requiere tanto el token de Clerk como la cookie de presencia firmada (`SESSION_SECRET`).
-5. **Allowlist Estricta en Express:** Nunca exponer directorios completos. Si se añade un archivo público nuevo, debe registrarse en la allowlist de `server.mjs`.
-6. **Cero DDL en Arranque:** Prohibido crear tablas (`CREATE TABLE`) o alterar esquemas automáticamente al iniciar el servidor en producción.
-7. **Pruebas sin Cuentas Reales:** Nunca crear cuentas reales ni disparar correos de verificación durante la ejecución de tests automatizados.
+[`AGENTS.md`](AGENTS.md) es la **única fuente de verdad** para las reglas del proyecto. No se duplican aquí para evitar discrepancias:
+
+- [Reglas que no se negocian](AGENTS.md#reglas-que-no-se-negocian) (privacidad de la cámara, uso anónimo garantizado, identidad en servidor, doble validación, allowlist estricta, cero DDL al arrancar, tests sin cuentas reales, CSP y gestión de secretos).
+- [Límites entre módulos del cliente](AGENTS.md#límites-entre-módulos-del-cliente) (aislamiento de DOM, responsabilidades de `ui.js` y `stats-queue.js`, inyección lateral e imports dinámicos para tolerancia a fallos).
+- [Cuándo una tarea está terminada](AGENTS.md#cuándo-una-tarea-está-terminada) (criterios de aceptación verificables).
+- [Lo que exige permiso explícito del usuario](AGENTS.md#lo-que-exige-permiso-explícito-del-usuario) (acciones restringidas).
 
 ---
 
-## 3. Comandos Habituales
+## 3. Comandos Habituales y Entorno
 
-- **Iniciar servidor:** `npm start` (ejecuta `node server.mjs 5000`)
-- **Análisis estático:** `npm run lint` (`eslint .`)
-- **Ejecutar tests unitarios:** `npm test` (`node --test tests/*.test.mjs`)
-- **Ejecutar tests de UI:** `npm run test:ui` (`playwright test`)
-- **Instalar dependencias:** `npm install` (o `npm ci`)
+El entorno de ejecución y los comandos de desarrollo se definen en [`AGENTS.md`](AGENTS.md):
+
+- [Entorno de desarrollo](AGENTS.md#entorno-windows-de-esta-máquina) (Node ≥ 22.15 en Windows, PowerShell y ejecutables `.cmd`).
+- [Comandos](AGENTS.md#comandos) (`npm start`, `npm run lint`, `npm test`, `npm run test:ui`, `npm run start:prod`).
+- [Detalles de pruebas y variables de entorno](README.md#tests) en el README.
 
 ---
 
@@ -87,7 +65,7 @@ Usa o convoca a estos agentes según la naturaleza de la tarea:
 
 ---
 
-> **Antigravity:** usa [`AGENTS.md`](AGENTS.md) (mismas reglas) y sus propios subagentes en `.agents/agents/`. El plan en curso está en [`docs/antigravity/PLAN.md`](docs/antigravity/PLAN.md); si trabajas con Claude Code sobre una tarea de ese plan, marca su casilla en la tabla de seguimiento. Si cambia una regla, edita primero `AGENTS.md`.
+> **Antigravity:** usa [`AGENTS.md`](AGENTS.md) y sus propios subagentes en `.agents/agents/`. El plan en curso está en [`docs/antigravity/PLAN.md`](docs/antigravity/PLAN.md); si trabajas con Claude Code sobre una tarea de ese plan, marca su casilla en la tabla de seguimiento. Recuerda que [`AGENTS.md`](AGENTS.md) es la única fuente de verdad para las reglas del proyecto.
 
 ## 5. Flujo de Trabajo Recomendado (De Vibecoding a Código Robusto)
 

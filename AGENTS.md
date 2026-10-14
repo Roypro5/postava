@@ -92,5 +92,5 @@ Están en `.agents/agents/` (se crean en la tarea T0.2 del plan, a partir de
 - **Para ejecutar, `model: flash`:** `dev-postava`, `frontend-developer`,
   `test-automator`, `refactoring-specialist`, `performance-engineer` y `postgres-pro`.
 
-`.claude/agents/` y `CLAUDE.md` son de Claude Code: no se borran. Si cambia una regla,
-se cambia primero aquí.
+`.claude/agents/` y `CLAUDE.md` son de Claude Code: no se borran. `AGENTS.md` es la única
+fuente de verdad para las reglas del proyecto; `CLAUDE.md` enlaza a este fichero.
