@@ -486,7 +486,7 @@ y abrir el PR.
 | T2.6 | Documentación única | ☑ | `389d382` | Consolidada en AGENTS.md (fuente única de verdad), enlaces en CLAUDE.md y README |
 | F2 | Puerta Fase 2 | ☑ | — | Push de chore/fase-2-higiene y PR #3 abierto |
 | T3.1 | Esquema vs `pg_dump` | ☑ | `8ebd0d8` | Opción B de usuario (sin BD previa); esquema 0001_initial fijado como canónico |
-| T3.2 | Webhook de Clerk | ☐ | | ⛔ Después de la Fase 5 |
+| T3.2 | Webhook de Clerk | ☑ | `51c3f56` | Webhook user.deleted verificado con Svix HMAC nativo, idempotente y con rate limit |
 | T5.1 | Restos de Replit en el código | ☐ | | |
 | T5.2 | Documentación de la BD | ☐ | | |
 | T5.3 | BD en Neon | ☐ | | ⛔ La crea el usuario |
