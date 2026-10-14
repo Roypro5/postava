@@ -202,20 +202,20 @@ Postava está preparada para desplegarse a coste 0 € con la siguiente arquitec
 El repositorio incluye [`render.yaml`](render.yaml) para crear o sincronizar automáticamente el servicio web en Render con:
 - **Runtime:** `node`
 - **Build:** `npm ci`
-- **Start:** `node server.mjs --production` (Render inyecta la variable `PORT` automáticamente; el servidor prioriza ese puerto y activa el modo producción)
+- **Start:** `node server.mjs --production` (Render inyecta la variable `PORT` automáticamente; el servidor usa `PORT` porque el comando de arranque no pasa ningún puerto como argumento —un puerto como argumento tendría prioridad sobre `PORT`— y activa el modo producción)
 - **Health check:** `/healthz` (liveness simple que responde 200 sin tocar la BD ni exigir sesión)
 
 ### Variables de entorno en el panel de Render
 
-Ningún secreto se almacena en el repositorio; en `render.yaml` van con `sync: false`. Se configuran manualmente en la sección *Environment* del panel de Render:
+Ningún secreto se almacena en el repositorio; en `render.yaml` van con `sync: false` (o `generateValue: true`). Se configuran en la sección *Environment* del panel de Render:
 
 | Variable | Valor requerido |
 | --- | --- |
-| `SESSION_SECRET` | Cadena aleatoria de al menos 32 bytes (generada con `openssl rand -base64 48`) para firmar la cookie de presencia |
+| `SESSION_SECRET` | Generada automáticamente por Render (`generateValue: true` en `render.yaml`) con suficiente entropía y mantenida estable entre despliegues; no requiere configuración manual ni `openssl` |
 | `CLERK_PUBLISHABLE_KEY` | Clave pública de la instancia de desarrollo de Clerk (`pk_test_...`) |
 | `CLERK_SECRET_KEY` | Clave secreta de la instancia de desarrollo de Clerk (`sk_test_...`) |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | Secreto de firma Svix (`whsec_...`) del webhook configurado en Clerk apuntando a `https://<tu-app>.onrender.com/api/webhooks/clerk` suscrito a `user.deleted` |
-| `VITE_CLERK_PROXY_URL` | Dejar **vacía** (valor `""`) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | Secreto de firma Svix (`whsec_...`) del webhook configurado en Clerk apuntando a `https://<tu-app>.onrender.com/api/webhooks/clerk` suscrito a `user.deleted`. Se puede dejar vacía inicialmente al crear el servicio: el webhook responderá `503 WEBHOOK_UNCONFIGURED` hasta configurar el endpoint en Clerk con la URL definitiva de Render y pegar el secreto |
+| `VITE_CLERK_PROXY_URL` | **No definirla** (el servidor ya trata «no definida» igual que vacía, permitiendo que clerk-js hable directo con el host de Clerk) |
 | `PGHOST` | Host de la rama `production` de Neon |
 | `PGUSER` | Usuario de la rama `production` de Neon |
 | `PGPASSWORD` | Contraseña de la rama `production` de Neon |
