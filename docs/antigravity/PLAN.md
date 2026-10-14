@@ -493,7 +493,7 @@ y abrir el PR.
 | T5.2 | Documentación de la BD | ☑ | `5eed775` | Documentadas variables PG*, PGSSLMODE=require y aplicación en Neon web/psql |
 | T5.3 | BD en Neon | ☑ | — | Creada en Neon (PG 16, AWS us-east-2), ramas production y dev, esquema 0001_initial verificado |
 | T5.4 | Test de integración con PostgreSQL | ☑ | `63a5cc0` | Suite opcional con `PG_INTEGRATION=1` (guardar, duplicados, bordes UTC, límite minutos y deleteAll) |
-| T5.5 | Despliegue en Render | ☐ | | ⛔ |
+| T5.5 | Despliegue en Render | ☑ | `9f92487` | Blueprint render.yaml, docs de despliegue, rama production de Neon y allowlist protegida |
 | T5.6 | Verificación del despliegue | ☐ | | |
 | T5.7 | Dominio propio y Clerk de producción | ☐ | | ⛔ Diferida |
 | F5 | Puerta Fase 5 | ☐ | | ⛔ |
