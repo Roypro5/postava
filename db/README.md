@@ -9,7 +9,7 @@ de enfoque completado por usuario autenticado).
 > tiene la tabla, compara con
 > `pg_dump --schema-only -t posture_stats_sessions` y ajusta.
 
-**El DDL nunca se ejecuta al arrancar el servidor** (regla 6 de `CLAUDE.md`);
+**El DDL nunca se ejecuta al arrancar el servidor** (regla 6 de `AGENTS.md`);
 `tests/db-schema.test.mjs` lo vigila. Todo cambio de esquema es un script de
 `db/migrations/` aplicado a mano.
 
@@ -26,22 +26,18 @@ Decisión de índice: `(user_id, started_at)` en vez de `(user_id, created_at DE
 porque las consultas reales (`getStats` y el límite diario) filtran y ordenan por
 `started_at`. Postgres recorre un índice ascendente hacia atrás sin coste extra.
 
-## Aplicar en Replit (BD de desarrollo)
+## Aplicar en la base de datos de desarrollo
 
-1. Abre la pestaña Shell y comprueba que las variables `PG*` / `DATABASE_URL`
-   apuntan a la base de **desarrollo**.
-2. Si la tabla aún no existe: `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql`
+1. Comprueba que las variables `PG*` / `DATABASE_URL` apuntan a la base de **desarrollo**.
+2. Si la tabla aún no existe:
+   ```sh
+   export PGHOST=... PGUSER=... PGPASSWORD=... PGDATABASE=... PGPORT=5432
+   psql -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
+   # o bien con DATABASE_URL si está definida:
+   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
+   ```
    (el fichero contiene el Down comentado; solo se ejecuta el Up).
 3. Si ya existe, concilia primero con `pg_dump` (arriba) y no ejecutes el Up.
-4. **Publish propaga** el esquema de desarrollo a la base de producción gestionada;
-   no ejecutes DDL a mano en producción.
-
-## Aplicar fuera de Replit
-
-```sh
-export PGHOST=... PGUSER=... PGPASSWORD=... PGDATABASE=... PGPORT=5432
-psql -v ON_ERROR_STOP=1 -f db/migrations/0001_initial.sql
-```
 
 Revertir (destructivo, borra todas las estadísticas): descomenta y ejecuta el
 bloque Down de la migración.

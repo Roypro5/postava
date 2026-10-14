@@ -156,13 +156,13 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 | Variable | Para qué sirve |
 | --- | --- |
 | `SESSION_SECRET` | firma la cookie de presencia (`server/session-cookie.mjs`); debe mantenerse estable entre reinicios |
-| `TRUST_PROXY_HOPS` | cuántos saltos de proxy inverso confiar (por defecto `1`, como el de Replit) para no dejar que el cliente falsee `X-Forwarded-*` |
+| `TRUST_PROXY_HOPS` | cuántos saltos de proxy inverso confiar (por defecto `1`) para no dejar que el cliente falsee `X-Forwarded-*` |
 | `PORT` | puerto del servidor si no se pasa como argumento (`node server.mjs <puerto>`); por defecto `5000` |
 | `CLERK_SECRET_KEY` | clave secreta de Clerk usada por el proxy del servidor |
 | `CLERK_PUBLISHABLE_KEY` / `VITE_CLERK_PUBLISHABLE_KEY` | clave pública de Clerk para el cliente |
 | `VITE_CLERK_PROXY_URL` | URL del proxy de Clerk que usa el adaptador empaquetado; en producción debe ser `https://<tu-dominio>/api/__clerk`. Si queda vacía, clerk-js habla directamente con el host de la clave pública y la CSP de producción debe permitirlo: comprueba el login con la CSP activa antes de publicar |
-| `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Nada lo fija por sí solo: usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. En un despliegue de Replit (`REPLIT_DEPLOYMENT=1`) sin `NODE_ENV`, el servidor entra en producción y lo avisa en el log; si `NODE_ENV` está definido con otro valor, se respeta y se avisa de que no hay endurecimiento |
-| `REPLIT_DEPLOYMENT` | lo define Replit en los despliegues (`1`); solo se lee para decidir el modo producción como se explica arriba |
+| `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. Si no está definido o tiene otro valor, corre en modo desarrollo |
+| `REPLIT_DEPLOYMENT` | opcional (`1`); compatibilidad heredada que infiere producción si `NODE_ENV` no está definido |
 | `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGPORT` | conexión de `pg` (`new Pool()` sin argumentos; `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
 
 Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
@@ -235,11 +235,11 @@ encuentra ninguno, hay que instalar el de Playwright con
 
 | Variable | Para qué sirve |
 | --- | --- |
-| `TEST_BASE_URL` | URL de una instancia ya levantada; si se define, Playwright no arranca el servidor local ni sustituye Clerk (en Replit se toma de `REPLIT_DEV_DOMAIN`). Solo con una URL local (`localhost`, `127.0.0.1`, `::1`) el navegador ignora el proxy del sistema; con una remota lo respeta |
+| `TEST_BASE_URL` | URL de una instancia ya levantada; si se define, Playwright no arranca el servidor local ni sustituye Clerk. Solo con una URL local (`localhost`, `127.0.0.1`, `::1`) el navegador ignora el proxy del sistema; con una remota lo respeta |
 | `TEST_PORT` | puerto del servidor local que arranca Playwright; por defecto `5000`. Si ya hay algo escuchando en él, `test:ui` falla en vez de reutilizarlo (usa otro puerto o `TEST_REUSE_SERVER=1`) |
 | `TEST_REUSE_SERVER` | `1` para reutilizar de forma explícita un servidor local ya levantado en ese puerto; por defecto no se reutiliza, para no ejecutar los specs contra un servidor ajeno (por ejemplo, uno con claves reales) |
 | `CHROMIUM_PATH` | ruta al ejecutable de Chrome/Chromium/Edge |
-| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | claves de Clerk de **desarrollo** que se pasan al servidor local (define ambas; nunca de producción). Sin ninguna de las dos se usan valores ficticios y `tests/auth-ui.spec.mjs` sustituye `/api/auth/config` y el bundle del adaptador, porque no hay proveedor real al que llegar. Si defines cualquiera de las dos, o usas `TEST_BASE_URL` o Replit, esa sustitución no se aplica y los tests de `auth-ui.spec.mjs` que abren `login.html` cargan el Clerk real; solo comprueban su inicialización y las validaciones del formulario, sin crear cuentas ni enviar correos. El resto de specs usan siempre un adaptador simulado |
+| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | claves de Clerk de **desarrollo** que se pasan al servidor local (define ambas; nunca de producción). Sin ninguna de las dos se usan valores ficticios y `tests/auth-ui.spec.mjs` sustituye `/api/auth/config` y el bundle del adaptador, porque no hay proveedor real al que llegar. Si defines cualquiera de las dos o usas `TEST_BASE_URL`, esa sustitución no se aplica y los tests de `auth-ui.spec.mjs` que abren `login.html` cargan el Clerk real; solo comprueban su inicialización y las validaciones del formulario, sin crear cuentas ni enviar correos. El resto de specs usan siempre un adaptador simulado |
 | `SESSION_SECRET` | secreto de la cookie de presencia para ese servidor local; por defecto un valor solo de pruebas |
 
 ### Integración continua (GitHub Actions)

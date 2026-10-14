@@ -245,7 +245,7 @@ function clerkAuthentication() {
   return function clerkAuthenticationMiddleware(req, res, next) {
     // Only the session cookies authenticate a request to this server: the client
     // is same-origin and cookie-based and never sends its own Authorization header
-    // (replit.md; clerk-js only sends one to third-party analytics). The SDK would
+    // (docs/auth-verification.md; clerk-js only sends one to third-party analytics). The SDK would
     // otherwise honor a "Bearer" header ahead of the cookies, and a machine-token
     // prefix (mt_, oat_, ak_) makes it call Clerk's API on every request it sees.
     // (The Clerk proxy, which does forward what the client sent, never gets here.)
@@ -320,8 +320,8 @@ export function trustProxyHops() {
 // `store` is only overridden by tests, to run the stats routes without a database.
 export function createApp({ store = statsStore } = {}) {
   const app = express();
-  // Trust only the configured number of reverse-proxy hops (Replit puts one
-  // in front by default) instead of blindly trusting every hop, so that
+  // Trust only the configured number of reverse-proxy hops (1 by default)
+  // instead of blindly trusting every hop, so that
   // X-Forwarded-Host/-Proto/-For can't be spoofed by the client past that.
   app.set("trust proxy", trustProxyHops());
   app.disable("x-powered-by");
