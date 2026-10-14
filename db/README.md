@@ -3,11 +3,10 @@
 PostgreSQL con una sola tabla, `posture_stats_sessions` (resumen de cada bloque
 de enfoque completado por usuario autenticado).
 
-> **Pendiente de conciliar con `pg_dump` de la BD real.** `schema.sql` y
-> `migrations/0001_initial.sql` se dedujeron del código (`server/stats-store.mjs`),
-> no de la base de datos en uso. Antes de aplicar nada sobre una base que ya
-> tiene la tabla, compara con
-> `pg_dump --schema-only -t posture_stats_sessions` y ajusta.
+> **Conciliado en T3.1.** `schema.sql` y `migrations/0001_initial.sql` constituyen
+> el esquema canónico inicial validado con el código (`server/stats-store.mjs`).
+> Si se despliega en una base que ya tiene una tabla previa, compara con
+> `pg_dump --schema-only -t posture_stats_sessions` antes de aplicar.
 
 **El DDL nunca se ejecuta al arrancar el servidor** (regla 6 de `AGENTS.md`);
 `tests/db-schema.test.mjs` lo vigila. Todo cambio de esquema es un script de
