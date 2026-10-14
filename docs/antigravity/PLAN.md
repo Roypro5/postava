@@ -278,6 +278,9 @@ Nunca DDL al arrancar (regla 6).
 **Subagentes:** `architect-reviewer` diseña, `dev-postava` implementa y
 `security-auditor` audita.
 
+**Orden:** se ejecuta **después de la [Fase 5](#fase-5--despliegue-sin-replit)**: el
+webhook necesita una URL pública a la que Clerk pueda llamar.
+
 1. **Diseño primero**, con aprobación del usuario: ruta `POST /api/webhooks/clerk`,
    verificación de la firma Svix con `CLERK_WEBHOOK_SIGNING_SECRET` y body crudo.
    - No pasa por la cookie de presencia, porque no es una ruta de usuario: documentar por
@@ -308,6 +311,161 @@ Restricciones fijas para todo lo de esta fase:
 
 ---
 
+## Fase 5 · Despliegue sin Replit
+
+Rama: `chore/fase-5-despliegue`. **Se ejecuta antes de T3.2.**
+
+T2.5 quitó los ficheros de Replit, pero nada sustituye lo que Replit daba hecho: el
+contenedor Node con HTTPS, la PostgreSQL gestionada, el panel de secretos y la detección de
+producción por `REPLIT_DEPLOYMENT`. Postava nunca se publicó en Replit, así que no hay
+dominio, usuarios ni datos que migrar.
+
+**Stack elegido (coste 0 €; confirmar los límites en las páginas oficiales de precios antes
+de crear las cuentas):**
+
+| Pieza | Elección | Límites y motivo |
+| --- | --- | --- |
+| Web | Render, *web service* gratuito | HTTPS en `*.onrender.com` y health check. Se duerme tras 15 min sin tráfico y tarda ~1 min en despertar. |
+| BD | Neon, plan gratuito | No caduca; ~0,5 GB. **No** usar la PostgreSQL gratuita de Render: se borra a los 30 días. |
+| Cuentas | Instancia de **desarrollo** de Clerk (`pk_test`/`sk_test`) | La de producción exige dominio propio y el proxy de Clerk no funciona con instancias de desarrollo. Con `VITE_CLERK_PROXY_URL` vacía, clerk-js habla directo y la CSP ya añade ese host (`clerkFrontendApiOrigin`, `server/security-headers.mjs`). |
+
+**Comprobado en el código:**
+
+- `pg` lee `PGSSLMODE`, así que Neon funciona solo con variables `PG*`, sin tocar `server/stats-store.mjs`.
+- `esbuild` está en `dependencies`.
+- `server.mjs` da prioridad al puerto pasado como argumento sobre `PORT`. Por eso en Render el arranque es `node server.mjs --production`, **no** `npm run start:prod` (fija el 5000).
+
+### T5.1 · Quitar los restos de Replit del código
+
+**Subagentes:** `refactoring-specialist` (ejecuta) y `revisor-proyectos` (revisa).
+
+1. `server/startup-config.mjs`: quitar la inferencia por `REPLIT_DEPLOYMENT` de
+   `applyProductionMode` (solo quedan `--production` y `NODE_ENV`). Quitar sus tests en
+   `tests/server-startup.test.mjs` y la fila `REPLIT_DEPLOYMENT` del README.
+2. `playwright.config.mjs`: quitar `onReplit` / `REPLIT_DEV_DOMAIN` (`TEST_BASE_URL` ya cubre
+   la instancia remota). Ajustar `tests/playwright-config.test.mjs` y los comentarios de
+   `tests/auth-ui.spec.mjs`.
+3. `tests/node-runtime.test.mjs`: borrar el test de `.replit`, que ahora siempre se omite.
+4. Comentarios que citan `replit.md`, que ya no existe (`stats-math.js`,
+   `tests/server-clerk-auth.test.mjs`): apuntarlos a `docs/auth-verification.md` o al README.
+5. `.claude/agents/dev-postava.md` y `.agents/agents/dev-postava.md`: sustituir la línea que
+   manda leer `replit.md` y `.agents/memory/` por `docs/auth-verification.md`. Es el único
+   cambio permitido en `.claude/agents/`.
+
+**Hecho cuando:** `git grep -il replit -- . ':!docs/antigravity'` no da resultados y
+`npm run lint`, `npm test` y `npm run test:ui` siguen en verde.
+
+**Commit:** `T5.1: remove remaining Replit references from code and tests`.
+
+### T5.2 · Documentación de la base de datos
+
+**Subagente:** `postgres-pro`.
+
+1. `db/README.md`: el servidor solo lee las variables `PG*`; `DATABASE_URL` sirve únicamente
+   para lanzar `psql` a mano.
+2. README › Variables de entorno: añadir `PGSSLMODE=require` (obligatorio en Neon).
+3. `db/README.md`: explicar cómo aplicar `0001_initial.sql` desde el editor SQL de Neon, para
+   quien no tenga `psql` instalado.
+
+**Commit:** `T5.2: document PG* variables, PGSSLMODE and applying the schema on Neon`.
+
+### ⛔ T5.3 · Crear la base de datos en Neon
+
+**Responsable:** el usuario, con ayuda de `postgres-pro`. Toca la base real (ver `AGENTS.md`).
+
+1. El usuario crea un proyecto en Neon (PostgreSQL 16, región cercana a la de Render) con
+   dos ramas: `main` (producción) y `dev`.
+2. Pega el bloque *Up* de `db/migrations/0001_initial.sql` en el editor SQL de cada rama.
+3. Comprueba las columnas con
+   `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'posture_stats_sessions';`
+   y las compara con `db/schema.sql`.
+
+Ningún agente ve ni escribe las credenciales; las guarda el usuario.
+
+### T5.4 · Test de integración opcional contra PostgreSQL real
+
+**Subagentes:** `postgres-pro` (ejecuta) y `security-auditor` (revisa el SQL).
+
+Cierra el hueco de `db/README.md` › Límites conocidos: el CTE de `saveSession` nunca se ha
+ejecutado contra un PostgreSQL real.
+
+1. Nuevo `tests/stats-store.pg.test.mjs`, que se **omite** salvo con `PG_INTEGRATION=1`
+   (la CI y `npm test` no cambian).
+2. Usa `createStatsStore` / `createStatsPool` de `server/stats-store.mjs` contra la rama
+   `dev` de Neon.
+3. Casos:
+   - guardar una sesión;
+   - un reintento con el mismo id da `duplicate`;
+   - el límite diario con sesiones a las 23:59:59 y a las 00:00:00 UTC;
+   - `deleteAll`.
+4. Usa un `user_id` de prueba propio y borra sus filas al terminar. Sin Clerk (regla 7).
+
+**Hecho cuando:** `PG_INTEGRATION=1 npm test` pasa contra la rama `dev` y `npm test` sin la
+variable sigue igual.
+
+**Commit:** `T5.4: add opt-in integration test for stats-store against real PostgreSQL`.
+
+### ⛔ T5.5 · Desplegar en Render
+
+**Responsables:** el usuario (crea la cuenta y pega los secretos) y `dev-postava` (escribe la
+configuración y la documentación).
+
+1. **`render.yaml`** (Blueprint):
+   - runtime `node`;
+   - build `npm ci`;
+   - start `node server.mjs --production`;
+   - `healthCheckPath: /healthz`;
+   - despliegue automático solo desde `main`;
+   - las variables secretas van con `sync: false`; ningún valor real va en el repo.
+2. **Variables en el panel de Render:**
+   - `SESSION_SECRET`, aleatoria (`openssl rand -base64 48`);
+   - `CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` de la instancia de **desarrollo**;
+   - `VITE_CLERK_PROXY_URL` vacía;
+   - `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` y `PGPORT` de la rama `main` de Neon, más `PGSSLMODE=require`;
+   - `TRUST_PROXY_HOPS`.
+3. **`TRUST_PROXY_HOPS`:** verificar el número real de saltos del proxy de Render antes de
+   fijarlo, porque el rate limit depende de `req.ip`. Hay que comparar `X-Forwarded-For` con
+   la IP propia en una petición de prueba y documentar el resultado.
+4. **README:** nueva sección «Despliegue» con el stack, los límites del plan gratuito y el
+   arranque en frío.
+
+**Commit:** `T5.5: add Render blueprint and deployment docs`.
+
+### T5.6 · Verificación en el despliegue
+
+**Subagentes:** `test-automator` y `security-auditor`.
+
+1. `GET /healthz` → 200.
+2. Pomodoro y cámara sin cuenta (HTTPS, permiso de cámara).
+3. Login con Clerk de desarrollo y bloque completado → fila en Neon.
+4. En `/stats`:
+   - aparece el bloque;
+   - «Borrar todas mis estadísticas» lo borra;
+   - un invitado es redirigido.
+5. Cero violaciones de CSP en la consola; cabeceras HSTS y CSP presentes.
+6. `npm run test:ui` con `TEST_BASE_URL=https://<app>.onrender.com`. Con URL remota los specs
+   usan el Clerk real, sin crear cuentas ni enviar correos (regla 7).
+
+**Hecho cuando:** todos los puntos se cumplen y los resultados quedan anotados en la tabla de
+seguimiento.
+
+### ⛔ T5.7 · (Diferida) Dominio propio y Clerk de producción
+
+Solo cuando se quiera abrir Postava al público.
+
+1. Comprar un dominio (~10 €/año) y apuntarlo a Render.
+2. Crear la instancia de producción de Clerk con sus registros DNS.
+3. Fijar `VITE_CLERK_PROXY_URL=https://<dominio>/api/__clerk` y cambiar a las claves
+   `pk_live`/`sk_live`.
+4. Valorar el plan de pago de Render (~7 $/mes) para que el servicio no se duerma.
+
+### ⛔ Puerta F5
+
+Resumen al usuario (URL desplegada, salida de los tests, riesgos) y permiso para hacer push
+y abrir el PR.
+
+---
+
 ## Seguimiento
 
 | ID | Tarea | Estado | Commit | Notas |
@@ -328,4 +486,12 @@ Restricciones fijas para todo lo de esta fase:
 | T2.6 | Documentación única | ☑ | `389d382` | Consolidada en AGENTS.md (fuente única de verdad), enlaces en CLAUDE.md y README |
 | F2 | Puerta Fase 2 | ☑ | — | Push de chore/fase-2-higiene y PR #3 abierto |
 | T3.1 | Esquema vs `pg_dump` | ☑ | `8ebd0d8` | Opción B de usuario (sin BD previa); esquema 0001_initial fijado como canónico |
-| T3.2 | Webhook de Clerk | ☐ | | ⛔ |
+| T3.2 | Webhook de Clerk | ☐ | | ⛔ Después de la Fase 5 |
+| T5.1 | Restos de Replit en el código | ☐ | | |
+| T5.2 | Documentación de la BD | ☐ | | |
+| T5.3 | BD en Neon | ☐ | | ⛔ La crea el usuario |
+| T5.4 | Test de integración con PostgreSQL | ☐ | | Opcional, `PG_INTEGRATION=1` |
+| T5.5 | Despliegue en Render | ☐ | | ⛔ |
+| T5.6 | Verificación del despliegue | ☐ | | |
+| T5.7 | Dominio propio y Clerk de producción | ☐ | | ⛔ Diferida |
+| F5 | Puerta Fase 5 | ☐ | | ⛔ |
