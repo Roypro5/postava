@@ -487,7 +487,7 @@ y abrir el PR.
 | F2 | Puerta Fase 2 | ☑ | — | Push de chore/fase-2-higiene y PR #3 abierto |
 | T3.1 | Esquema vs `pg_dump` | ☑ | `8ebd0d8` | Opción B de usuario (sin BD previa); esquema 0001_initial fijado como canónico |
 | T3.2 | Webhook de Clerk | ☑ | `51c3f56` | Webhook user.deleted verificado con Svix HMAC nativo, idempotente y con rate limit |
-| T5.1 | Restos de Replit en el código | ☐ | | |
+| T5.1 | Restos de Replit en el código | ☑ | `9b91c49` | Eliminado REPLIT_DEPLOYMENT/REPLIT_DEV_DOMAIN, tests ajustados y cero referencias |
 | T5.2 | Documentación de la BD | ☐ | | |
 | T5.3 | BD en Neon | ☐ | | ⛔ La crea el usuario |
 | T5.4 | Test de integración con PostgreSQL | ☐ | | Opcional, `PG_INTEGRATION=1` |
