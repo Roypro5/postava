@@ -327,5 +327,5 @@ Restricciones fijas para todo lo de esta fase:
 | T2.5 | Limpieza de Replit | ☑ | `9eeeb91` | Eliminados restos de Replit y maquetas; memoria a docs/auth-verification.md |
 | T2.6 | Documentación única | ☑ | `389d382` | Consolidada en AGENTS.md (fuente única de verdad), enlaces en CLAUDE.md y README |
 | F2 | Puerta Fase 2 | ☑ | — | Push de chore/fase-2-higiene y PR #3 abierto |
-| T3.1 | Esquema vs `pg_dump` | ☐ | | ⛔ usuario |
+| T3.1 | Esquema vs `pg_dump` | ☑ | `8ebd0d8` | Opción B de usuario (sin BD previa); esquema 0001_initial fijado como canónico |
 | T3.2 | Webhook de Clerk | ☐ | | ⛔ |
