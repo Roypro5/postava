@@ -3,7 +3,7 @@ import test from "node:test";
 import http from "node:http";
 import { once } from "node:events";
 import { existsSync, readFileSync } from "node:fs";
-import { createApp } from "../server.mjs";
+import { createApp, bundleFrontend } from "../server.mjs";
 
 // El SDK de Clerk envía telemetría a sus servidores con claves pk_test: en tests no debe salir nada a la red.
 process.env.CLERK_TELEMETRY_DISABLED ??= "1";
@@ -43,6 +43,24 @@ test("los módulos del cliente registrados en la allowlist se sirven con 200", a
     assert.equal(await get(port, "/server.mjs"), 404);
   });
 });
+
+test("las fuentes locales de assets/fonts/ y su licencia registradas en la allowlist se sirven con 200", async () => {
+  await withServer(async (port) => {
+    for (const path of [
+      "/assets/fonts/dm-sans-400.woff2",
+      "/assets/fonts/dm-sans-500.woff2",
+      "/assets/fonts/dm-sans-600.woff2",
+      "/assets/fonts/dm-sans-700.woff2",
+      "/assets/fonts/manrope-600.woff2",
+      "/assets/fonts/manrope-700.woff2",
+      "/assets/fonts/manrope-800.woff2",
+      "/assets/fonts/LICENSE-OFL.txt",
+    ]) {
+      assert.equal(await get(port, path), 200, path);
+    }
+  });
+});
+
 
 /* ── Cierre transitivo de imports ──────────────────────────────────────────
    Si app.js (o cualquier módulo que importe) apunta a un archivo que la allowlist
@@ -139,9 +157,20 @@ test("el servidor no expone código de servidor, manifiestos, pruebas ni documen
     for (const path of [
       "/server.mjs", "/package.json", "/package-lock.json", "/server/stats-store.mjs", "/CLAUDE.md",
       "/tests/timer.test.mjs", "/playwright.config.mjs", "/.env", "/../server.mjs", "/node_modules/express/package.json",
+      "/auth-adapter.js", "/LICENSE", "/render.yaml",
     ]) {
       assert.equal(await get(port, path), 404, path);
     }
+  });
+});
+
+test("GET /auth-adapter.js devuelve 404 y GET /assets/auth-adapter.bundle.js devuelve 200", async () => {
+  if (!existsSync(new URL("./assets/auth-adapter.bundle.js", ROOT))) {
+    await bundleFrontend();
+  }
+  await withServer(async (port) => {
+    assert.equal(await get(port, "/auth-adapter.js"), 404);
+    assert.equal(await get(port, "/assets/auth-adapter.bundle.js"), 200);
   });
 });
 

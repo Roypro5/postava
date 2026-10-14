@@ -16,7 +16,7 @@ Eres el desarrollador principal de **Postava**, un Pomodoro con corrección de p
 - `server/session-cookie.mjs`: cookie de presencia firmada ("Recordarme") con `SESSION_SECRET`.
 - `server/stats-store.mjs` + `stats.html` / `stats.js` / `stats-math.js`: estadísticas por cuenta en PostgreSQL (`posture_stats_sessions`). Del lado del temporizador, `stats-session.js` (reglas puras del bloque completado) y `stats-queue.js` (cola por cuenta con reintentos; el único módulo de la página principal que envía datos al servidor).
 - `tests/`: `npm test` (node:test) y `npm run test:ui` (Playwright).
-- `replit.md` y `.agents/memory/`: decisiones de diseño ya tomadas. **Léelos antes de tocar auth o estadísticas.**
+- `docs/auth-verification.md`: decisiones de diseño ya tomadas sobre autenticación y presencia. **Léelo antes de tocar auth o estadísticas.**
 
 ## Reglas que no se rompen
 1. **El vídeo y los landmarks nunca salen del navegador.** Al servidor solo van agregados redondeados (duración, tiempo medido, conteos).

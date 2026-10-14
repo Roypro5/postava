@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 // playwright.config.mjs fija POSTAVA_MOCK_CLERK=1 solo con las claves ficticias locales
-// (sin TEST_BASE_URL, Replit ni CLERK_PUBLISHABLE_KEY propia). En ese caso no hay proveedor
+// (sin TEST_BASE_URL ni CLERK_PUBLISHABLE_KEY propia). En ese caso no hay proveedor
 // real al que llegar: se sustituyen /api/auth/config y el bundle del adaptador, sin red a
 // Clerk ni cuentas reales. Con un entorno real se comprueba la inicialización de verdad.
 const mockClerk = process.env.POSTAVA_MOCK_CLERK === "1";
@@ -50,6 +50,26 @@ test(`guest timer and ${mockClerk ? "mocked" : "real"} provider initialization s
 });
 
 test("guest statistics access redirects to sign in", async ({ page }) => {
+  if (mockClerk) {
+    await mockClerkProvider(page);
+    await page.route(/clerk\.test\.invalid/, (route) =>
+      route.fulfill({
+        status: 302,
+        headers: { Location: "/sign-in?redirect=/stats" },
+      }),
+    );
+    await page.route(/\/stats(?:\.html)?/, async (route) => {
+      const response = await route.fetch({ maxRedirects: 0 });
+      const location = response.headers()["location"] || "";
+      if (location.includes("clerk.test.invalid")) {
+        return route.fulfill({
+          status: 302,
+          headers: { Location: "/sign-in?redirect=/stats" },
+        });
+      }
+      return route.fulfill({ response });
+    });
+  }
   await page.goto("/stats");
   await expect(page).toHaveURL(/\/sign-in\?redirect=%2Fstats|\/sign-in\?redirect=\/stats/);
   await expect(page.locator("#login-form")).toBeVisible();

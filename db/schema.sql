@@ -1,11 +1,10 @@
 -- Postava: esquema de referencia de la base de datos de estadisticas.
 --
--- PENDIENTE DE CONCILIAR CON pg_dump DE LA BD REAL: este fichero se DEDUJO del
--- codigo (INSERT/SELECT y limites de validacion de server/stats-store.mjs), no
--- se extrajo de la base de datos. Antes de aplicarlo en una base que ya tenga
--- la tabla, comparalo con `pg_dump --schema-only -t posture_stats_sessions`.
+-- Conciliado en T3.1: establecido como esquema canonico inicial (sin base
+-- preexistente que conciliar). Si se aplica sobre una base existente, comparar
+-- con `pg_dump --schema-only -t posture_stats_sessions`.
 --
--- NUNCA se ejecuta al arrancar el servidor (CLAUDE.md, regla 6). Ver db/README.md.
+-- NUNCA se ejecuta al arrancar el servidor (AGENTS.md, regla 6). Ver db/README.md.
 -- Fuente de verdad del cambio incremental: db/migrations/. Este fichero es el
 -- estado resultante tras aplicar todas las migraciones.
 

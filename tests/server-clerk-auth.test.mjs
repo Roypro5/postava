@@ -353,7 +353,7 @@ test("con la petición marcada como no disponible NO se accede aunque el JWT y l
 });
 
 /* ── Authorization: solo cuentan las cookies ────────────────────────────────────
-   El cliente es del mismo origen y va con cookies (replit.md); ningún módulo suyo envía Authorization, y clerk-js
+   El cliente es del mismo origen y va con cookies (docs/auth-verification.md); ningún módulo suyo envía Authorization, y clerk-js
    solo lo usa hacia analítica de terceros. @clerk/express, en cambio, lo lee antes que las cookies y, con un
    prefijo de token de máquina (mt_, oat_, ak_), llama a la API de Clerk en cada petición, también en las públicas. */
 

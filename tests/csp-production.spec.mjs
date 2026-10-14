@@ -93,6 +93,8 @@ test("producción: la CSP enforced no bloquea MediaPipe (módulo, WASM y modelo)
   const consoleCspErrors = [];
   const engine = { ready: false, failed: false };
   const mediapipeRequests = [];
+  const googleFontsRequests = [];
+  const localFontRequests = [];
   page.on("console", (msg) => {
     const text = msg.text();
     if (/Content Security Policy|Content-Security-Policy/i.test(text)) consoleCspErrors.push(text);
@@ -101,6 +103,8 @@ test("producción: la CSP enforced no bloquea MediaPipe (módulo, WASM y modelo)
   });
   page.on("response", (res) => {
     const url = res.url();
+    if (/fonts\.googleapis|fonts\.gstatic/.test(url)) googleFontsRequests.push(url);
+    if (url.includes("/assets/fonts/")) localFontRequests.push({ url, status: res.status() });
     if (/jsdelivr|storage\.googleapis/.test(url)) mediapipeRequests.push({ url, status: res.status() });
   });
   await page.addInitScript(() => {
@@ -116,7 +120,12 @@ test("producción: la CSP enforced no bloquea MediaPipe (módulo, WASM y modelo)
 
   const response = await page.goto(`${baseURL}/`);
   // Es producción de verdad: CSP enforced, no Report-Only.
-  expect(response.headers()["content-security-policy"]).toContain("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+  const cspHeader = response.headers()["content-security-policy"];
+  expect(cspHeader).toContain("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+  expect(cspHeader).not.toContain("fonts.googleapis.com");
+  expect(cspHeader).not.toContain("fonts.gstatic.com");
+  expect(cspHeader).toContain("style-src 'self'");
+  expect(cspHeader).toContain("font-src 'self'");
   expect(response.headers()["content-security-policy-report-only"]).toBeUndefined();
 
   // Espera a que el modelo termine de cargarse (o falle) sin sleeps fijos.
@@ -131,4 +140,7 @@ test("producción: la CSP enforced no bloquea MediaPipe (módulo, WASM y modelo)
   expect(engine.ready).toBe(true);
   expect(mediapipeRequests.some((r) => r.url.includes("jsdelivr") && r.status === 200)).toBe(true);
   expect(mediapipeRequests.some((r) => r.url.includes("pose_landmarker_lite.task") && r.status === 200)).toBe(true);
+  expect(googleFontsRequests, "no debe haber peticiones a Google Fonts").toEqual([]);
+  expect(localFontRequests.length, "debe cargar fuentes locales").toBeGreaterThan(0);
+  expect(localFontRequests.every((r) => r.status === 200), "todas las fuentes locales deben devolver 200").toBe(true);
 });

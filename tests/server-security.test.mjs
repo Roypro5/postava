@@ -65,7 +65,10 @@ test("responses carry the hardening headers, including a CSP that matches what t
     assert.doesNotMatch(csp, /clerk-telemetry/);
     assert.match(csp, /frame-src[^;]*https:\/\/challenges\.cloudflare\.com/);
     assert.match(csp, /worker-src[^;]*blob:/);
-    assert.match(csp, /style-src[^;]*https:\/\/fonts\.googleapis\.com/);
+    assert.doesNotMatch(csp, /fonts\.googleapis\.com/);
+    assert.doesNotMatch(csp, /fonts\.gstatic\.com/);
+    assert.match(csp, /style-src 'self'(?:;|$)/);
+    assert.match(csp, /font-src 'self'(?:;|$)/);
   } finally {
     await close();
   }

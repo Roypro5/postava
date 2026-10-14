@@ -56,7 +56,7 @@ test("account pages expose sign-in, sign-up, sign-out and honest session copy", 
     read("auth-adapter.js"),
     read("login.html"),
     read("login.js"),
-    read("replit.md"),
+    read("docs/auth-verification.md"),
   ]);
   assert.match(client, /async signIn\(/);
   assert.match(client, /async signUp\(/);

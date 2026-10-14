@@ -19,13 +19,6 @@ npm start
 <http://localhost:5000> (se puede cambiar con `node server.mjs <puerto>` o con la
 variable `PORT`). Acepta el permiso de cámara al abrirla.
 
-Fuera de Replit, el `package-lock.json` apunta al registry interno de Replit y
-la instalación falla; usa en su lugar:
-
-```bash
-npm install --no-package-lock --registry=https://registry.npmjs.org
-```
-
 Al arrancar, `server.mjs` compila con **esbuild** el adaptador de autenticación
 (`auth-adapter.js` → `assets/auth-adapter.bundle.js`) antes de levantar el
 servidor **Express**. Este sirve únicamente los ficheros de una allowlist (no la
@@ -150,27 +143,28 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 - En `/stats`, la sección **Privacidad** permite «Borrar todas mis estadísticas»
   (`DELETE /api/stats`, con confirmación, Clerk + cookie de presencia y
   5 peticiones/minuto). El Pomodoro sigue funcionando igual.
-- **Retención:** la purga es manual. `psql -f db/purge-old.sql` borra las sesiones
-  de más de 400 días. Para los datos de un usuario de Clerk eliminado, usa
-  `db/delete-user.sql` (un webhook de Clerk que lo automatice queda para más
-  adelante).
-- **Esquema:** `db/schema.sql` y `db/migrations/` (deducidos del código,
-  pendientes de conciliar con `pg_dump` de la BD real) se aplican a mano; el
-  servidor nunca ejecuta DDL.
+- **Retención:** la purga por antigüedad es manual (`psql -f db/purge-old.sql`
+  borra las sesiones de más de 400 días). Para un usuario de Clerk eliminado,
+  Postava procesa automáticamente el webhook `user.deleted` en
+  `POST /api/webhooks/clerk` (y `db/delete-user.sql` queda como respaldo manual).
+- **Esquema:** `db/schema.sql` y `db/migrations/0001_initial.sql` constituyen el
+  esquema canónico inicial y se aplican a mano (mediante `psql` o desde el editor
+  SQL web de Neon); el servidor nunca ejecuta DDL.
 
 ## Variables de entorno
 
 | Variable | Para qué sirve |
 | --- | --- |
 | `SESSION_SECRET` | firma la cookie de presencia (`server/session-cookie.mjs`); debe mantenerse estable entre reinicios |
-| `TRUST_PROXY_HOPS` | cuántos saltos de proxy inverso confiar (por defecto `1`, como el de Replit) para no dejar que el cliente falsee `X-Forwarded-*` |
+| `TRUST_PROXY_HOPS` | cuántos saltos de proxy inverso confiar (por defecto `1`) para no dejar que el cliente falsee `X-Forwarded-*` |
 | `PORT` | puerto del servidor si no se pasa como argumento (`node server.mjs <puerto>`); por defecto `5000` |
 | `CLERK_SECRET_KEY` | clave secreta de Clerk usada por el proxy del servidor |
 | `CLERK_PUBLISHABLE_KEY` / `VITE_CLERK_PUBLISHABLE_KEY` | clave pública de Clerk para el cliente |
 | `VITE_CLERK_PROXY_URL` | URL del proxy de Clerk que usa el adaptador empaquetado; en producción debe ser `https://<tu-dominio>/api/__clerk`. Si queda vacía, clerk-js habla directamente con el host de la clave pública y la CSP de producción debe permitirlo: comprueba el login con la CSP activa antes de publicar |
-| `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Nada lo fija por sí solo: usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. En un despliegue de Replit (`REPLIT_DEPLOYMENT=1`) sin `NODE_ENV`, el servidor entra en producción y lo avisa en el log; si `NODE_ENV` está definido con otro valor, se respeta y se avisa de que no hay endurecimiento |
-| `REPLIT_DEPLOYMENT` | lo define Replit en los despliegues (`1`); solo se lee para decidir el modo producción como se explica arriba |
-| `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGPORT` | conexión de `pg` (`new Pool()` sin argumentos; `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
+| `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. Si no está definido o tiene otro valor, corre en modo desarrollo |
+| `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPORT` | conexión estándar de PostgreSQL para `pg` (`new Pool()` sin argumentos; el servidor lee exclusivamente variables `PG*` y `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
+| `PGSSLMODE` | modo SSL para la conexión de PostgreSQL vía `pg` (obligatorio con valor `require` en Neon y la mayoría de proveedores gestionados en la nube) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | clave de firma Svix para verificar webhooks de Clerk (`POST /api/webhooks/clerk`). En el panel de Clerk (Webhooks) se crea un endpoint `https://<dominio>/api/webhooks/clerk` suscrito solo al evento `user.deleted` (los demás eventos se ignoran y el cuerpo admite como máximo 32 KB) |
 
 Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
 
@@ -193,15 +187,55 @@ Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
   `clerk-telemetry.com` ya no está en el `connect-src` de la CSP.
 - Una ruta `/api/*` inexistente responde `404 {"error":"not_found"}`.
 
+## Despliegue en producción (Render + Neon)
+
+Postava está preparada para desplegarse a coste 0 € con la siguiente arquitectura:
+
+| Componente | Servicio | Plan y región | Notas operativas |
+| --- | --- | --- | --- |
+| **Web Service** | [Render](https://render.com) | Free, región Ohio (`us-east-2`) | HTTPS en `https://<tu-app>.onrender.com`. En el plan gratuito se suspende tras 15 minutos sin peticiones y tarda ~50-60 segundos en despertar (*cold start*) al recibir tráfico nuevo. |
+| **Base de datos** | [Neon](https://neon.tech) | Free, AWS Ohio (`us-east-2`) | PostgreSQL 16 con dos ramas: `production` (para el despliegue en Render) y `dev` (desarrollo y pruebas de integración). Exige `PGSSLMODE=require`. |
+| **Autenticación** | [Clerk](https://clerk.com) | Instancia de **desarrollo** | Claves `pk_test` y `sk_test`. Funciona sin requerir dominio propio configurando `VITE_CLERK_PROXY_URL=""` (clerk-js conecta directo con el host de Clerk, permitido por la CSP). |
+
+### Blueprint (`render.yaml`)
+
+El repositorio incluye [`render.yaml`](render.yaml) para crear o sincronizar automáticamente el servicio web en Render con:
+- **Runtime:** `node`
+- **Build:** `npm ci`
+- **Start:** `node server.mjs --production` (Render inyecta la variable `PORT` automáticamente; el servidor usa `PORT` porque el comando de arranque no pasa ningún puerto como argumento —un puerto como argumento tendría prioridad sobre `PORT`— y activa el modo producción)
+- **Health check:** `/healthz` (liveness simple que responde 200 sin tocar la BD ni exigir sesión)
+
+### Variables de entorno en el panel de Render
+
+Ningún secreto se almacena en el repositorio; en `render.yaml` van con `sync: false` (o `generateValue: true`). Se configuran en la sección *Environment* del panel de Render:
+
+| Variable | Valor requerido |
+| --- | --- |
+| `SESSION_SECRET` | Generada automáticamente por Render (`generateValue: true` en `render.yaml`) con suficiente entropía y mantenida estable entre despliegues; no requiere configuración manual ni `openssl` |
+| `CLERK_PUBLISHABLE_KEY` | Clave pública de la instancia de desarrollo de Clerk (`pk_test_...`) |
+| `CLERK_SECRET_KEY` | Clave secreta de la instancia de desarrollo de Clerk (`sk_test_...`) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | Secreto de firma Svix (`whsec_...`) del webhook configurado en Clerk apuntando a `https://<tu-app>.onrender.com/api/webhooks/clerk` suscrito a `user.deleted`. Se puede dejar vacía inicialmente al crear el servicio: el webhook responderá `503 WEBHOOK_UNCONFIGURED` hasta configurar el endpoint en Clerk con la URL definitiva de Render y pegar el secreto |
+| `VITE_CLERK_PROXY_URL` | **No definirla** (el servidor ya trata «no definida» igual que vacía, permitiendo que clerk-js hable directo con el host de Clerk) |
+| `PGHOST` | Host de la rama `production` de Neon |
+| `PGUSER` | Usuario de la rama `production` de Neon |
+| `PGPASSWORD` | Contraseña de la rama `production` de Neon |
+| `PGDATABASE` | Nombre de la base de datos de la rama `production` de Neon |
+| `PGPORT` | `5432` |
+| `PGSSLMODE` | `require` (obligatorio para Neon) |
+| `TRUST_PROXY_HOPS` | `1` por defecto (se verificará en la tarea T5.6 comparando la cabecera `X-Forwarded-For` de Render con una petición real) |
+
 ## Desarrollo con agentes (Antigravity / Claude Code)
 
-El proyecto se puede desarrollar con agentes de IA. Cada IDE lee su propio fichero de
-reglas, y los dos dicen lo mismo:
+El proyecto se puede desarrollar con agentes de IA. [`AGENTS.md`](AGENTS.md) es la
+**fuente única de verdad** para las reglas del proyecto (reglas no negociables, límites
+entre módulos, entorno, comandos, cuándo una tarea está terminada y qué exige permiso).
+[`CLAUDE.md`](CLAUDE.md) enlaza a ella para las directrices operativas y aporta la matriz
+de subagentes y el flujo de trabajo recomendados para Claude Code.
 
 | Fichero | Lo lee | Para qué |
 | --- | --- | --- |
-| [`AGENTS.md`](AGENTS.md) | Antigravity (y otros agentes compatibles) | reglas que no se negocian, entorno, cuándo una tarea está terminada y qué exige permiso |
-| [`CLAUDE.md`](CLAUDE.md) + `.claude/agents/` | Claude Code | las mismas reglas y la matriz de subagentes de Claude |
+| [`AGENTS.md`](AGENTS.md) | Antigravity, Claude Code y otros agentes | **fuente única de verdad**: reglas que no se negocian, límites de módulos, entorno, comandos, cuándo una tarea está terminada y qué exige permiso |
+| [`CLAUDE.md`](CLAUDE.md) + `.claude/agents/` | Claude Code | guía de subagentes y flujo de trabajo para Claude Code; enlaza a `AGENTS.md` para las reglas y al `README.md` para la arquitectura |
 | `.agents/agents/` | Antigravity | subagentes de Antigravity, portados desde `.claude/agents/` (los crea la tarea T0.2 del plan) |
 | [`docs/antigravity/AUDITORIA.md`](docs/antigravity/AUDITORIA.md) | personas y agentes | estado del proyecto a 2026-10-07 y hallazgos priorizados |
 | [`docs/antigravity/PLAN.md`](docs/antigravity/PLAN.md) | personas y agentes | plan por fases con tareas, subagentes, criterios de «hecho cuando» y tabla de seguimiento |
@@ -214,14 +248,15 @@ reglas, y los dos dicen lo mismo:
 3. El agente instala sus subagentes (Fase 0), ejecuta el plan tarea a tarea con un
    commit por tarea y se para en cada puerta ⛔ para pedir tu OK.
 
-Nunca hace push ni abre PRs sin permiso. Si cambia una regla, se edita primero
-`AGENTS.md` y después `CLAUDE.md`.
+Nunca hace push ni abre PRs sin permiso. Las reglas del proyecto se mantienen
+exclusivamente en [`AGENTS.md`](AGENTS.md).
 
 ## Tests
 
 ```bash
 npm test        # node --test tests/*.test.mjs
 npm run test:ui # Playwright; necesita Chrome/Chromium instalado
+npm run lint    # ESLint sobre todo el repositorio (eslint.config.mjs)
 ```
 
 `npm test` cubre lógica de servidor y estadísticas sin depender del navegador.
@@ -241,12 +276,19 @@ encuentra ninguno, hay que instalar el de Playwright con
 
 | Variable | Para qué sirve |
 | --- | --- |
-| `TEST_BASE_URL` | URL de una instancia ya levantada; si se define, Playwright no arranca el servidor local ni sustituye Clerk (en Replit se toma de `REPLIT_DEV_DOMAIN`). Solo con una URL local (`localhost`, `127.0.0.1`, `::1`) el navegador ignora el proxy del sistema; con una remota lo respeta |
+| `TEST_BASE_URL` | URL de una instancia ya levantada; si se define, Playwright no arranca el servidor local ni sustituye Clerk. Solo con una URL local (`localhost`, `127.0.0.1`, `::1`) el navegador ignora el proxy del sistema; con una remota lo respeta |
 | `TEST_PORT` | puerto del servidor local que arranca Playwright; por defecto `5000`. Si ya hay algo escuchando en él, `test:ui` falla en vez de reutilizarlo (usa otro puerto o `TEST_REUSE_SERVER=1`) |
 | `TEST_REUSE_SERVER` | `1` para reutilizar de forma explícita un servidor local ya levantado en ese puerto; por defecto no se reutiliza, para no ejecutar los specs contra un servidor ajeno (por ejemplo, uno con claves reales) |
 | `CHROMIUM_PATH` | ruta al ejecutable de Chrome/Chromium/Edge |
-| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | claves de Clerk de **desarrollo** que se pasan al servidor local (define ambas; nunca de producción). Sin ninguna de las dos se usan valores ficticios y `tests/auth-ui.spec.mjs` sustituye `/api/auth/config` y el bundle del adaptador, porque no hay proveedor real al que llegar. Si defines cualquiera de las dos, o usas `TEST_BASE_URL` o Replit, esa sustitución no se aplica y los tests de `auth-ui.spec.mjs` que abren `login.html` cargan el Clerk real; solo comprueban su inicialización y las validaciones del formulario, sin crear cuentas ni enviar correos. El resto de specs usan siempre un adaptador simulado |
+| `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | claves de Clerk de **desarrollo** que se pasan al servidor local (define ambas; nunca de producción). Sin ninguna de las dos se usan valores ficticios y `tests/auth-ui.spec.mjs` sustituye `/api/auth/config` y el bundle del adaptador, porque no hay proveedor real al que llegar. Si defines cualquiera de las dos o usas `TEST_BASE_URL`, esa sustitución no se aplica y los tests de `auth-ui.spec.mjs` que abren `login.html` cargan el Clerk real; solo comprueban su inicialización y las validaciones del formulario, sin crear cuentas ni enviar correos. El resto de specs usan siempre un adaptador simulado |
 | `SESSION_SECRET` | secreto de la cookie de presencia para ese servidor local; por defecto un valor solo de pruebas |
+
+### Integración continua (GitHub Actions)
+
+El flujo de CI (`.github/workflows/ci.yml`) ejecuta dos jobs en paralelo en cada push a `main` y en cada pull request:
+
+- **`test` (`npm test`)**: comprobación estática con ESLint (`npm run lint`), pruebas unitarias de servidor, módulos del cliente y comprobación de allowlist bajo Node 22.
+- **`ui` (`npm run test:ui`)**: pruebas de interfaz de Playwright sobre Chromium en `ubuntu-latest`. Instala el navegador y las dependencias del sistema con `npx playwright install --with-deps chromium`, corre las especificaciones contra el servidor local con claves ficticias (sin llamadas a Clerk real ni telemetría) y, en caso de fallo, sube `playwright-report/` como artefacto (`actions/upload-artifact@v4`) para depuración.
 
 ## Ajustes
 
@@ -324,7 +366,7 @@ muestra el diagrama de más abajo.
 | `auth-adapter.js` | adaptador de Clerk para el cliente; se empaqueta con esbuild al arrancar el servidor |
 | `server.mjs` | servidor Express: allowlist de estáticos, proxy de Clerk, cookie de presencia y API de sesión/estadísticas |
 | `db/` | `schema.sql`, `migrations/` (Up/Down), `purge-old.sql`, `delete-user.sql` y `README.md` con cómo aplicarlos a mano (nunca al arrancar) |
-| `server/` | `session-cookie.mjs` (cookie de presencia firmada), `stats-store.mjs` (estadísticas en PostgreSQL), `security-headers.mjs` (cabeceras de seguridad y CSP), `rate-limit.mjs` (limitador de peticiones en memoria), `middlewares/` (proxy de Clerk) |
+| `server/` | `session-cookie.mjs` (cookie de presencia firmada), `stats-store.mjs` (estadísticas en PostgreSQL), `clerk-webhook.mjs` (verificación Svix de webhooks de Clerk), `security-headers.mjs` (cabeceras de seguridad y CSP), `rate-limit.mjs` (limitador de peticiones en memoria), `middlewares/` (proxy de Clerk) |
 | `tests/` | pruebas `node --test` y especificaciones de Playwright |
 
 Todos los ficheros públicos están en la allowlist de `server.mjs`

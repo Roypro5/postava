@@ -36,10 +36,6 @@ const MEDIAPIPE_MODEL_PREFIX = "https://storage.googleapis.com/mediapipe-models/
 const CLERK_TURNSTILE_HOST = "https://challenges.cloudflare.com";
 // clerk-js telemetry (clerk-telemetry.com) is disabled in auth-adapter.js
 // (`telemetry: false`), so that host is intentionally NOT in connect-src.
-// styles.css `@import`s the Google Fonts stylesheet, which itself references
-// font files served from fonts.gstatic.com.
-const GOOGLE_FONTS_CSS_HOST = "https://fonts.googleapis.com";
-const GOOGLE_FONTS_FILE_HOST = "https://fonts.gstatic.com";
 
 // Outside production, server/middlewares/clerkProxyMiddleware.mjs is a
 // passthrough (see its NODE_ENV check), so `/api/auth/config` hands the
@@ -141,8 +137,8 @@ function buildDirectives({ includeClerkDevHosts, clerkFrontendOrigin }) {
     // No `<style>` blocks, no `style="…"` attributes, and app.js only ever
     // sets individual `element.style.prop` values (never `cssText`), so
     // style-src needs no 'unsafe-inline'.
-    "style-src": ["'self'", GOOGLE_FONTS_CSS_HOST],
-    "font-src": ["'self'", GOOGLE_FONTS_FILE_HOST],
+    "style-src": ["'self'"],
+    "font-src": ["'self'"],
     "img-src": ["'self'"],
     "connect-src": connectSrc,
     "frame-src": frameSrc,

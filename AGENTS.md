@@ -21,7 +21,10 @@ Para la arquitectura y el mapa de módulos, ver el [README](README.md) (seccione
 3. **Identidad en el servidor.** El `user_id` sale solo del contexto verificado de Clerk
    en el servidor, nunca de query, params ni body.
 4. **Doble validación.** Toda ruta privada exige el token de Clerk **y** la cookie de
-   presencia firmada (`SESSION_SECRET`).
+   presencia firmada (`SESSION_SECRET`). Excepción: `POST /api/webhooks/clerk` es una
+   llamada de servidor a servidor desde Clerk, se autentica con la firma Svix
+   (`CLERK_WEBHOOK_SIGNING_SECRET`) y no lleva token de usuario ni cookie de presencia;
+   el `user_id` sale solo del evento firmado.
 5. **Allowlist estricta.** Nunca exponer directorios. Cada fichero público nuevo se
    registra en `publicFiles` de `server.mjs`; `tests/public-files.test.mjs` lo comprueba.
 6. **Cero DDL al arrancar.** Los cambios de esquema son scripts de `db/migrations/`
@@ -51,14 +54,14 @@ Para la arquitectura y el mapa de módulos, ver el [README](README.md) (seccione
 - Node ≥ 22.15. Aquí es una instalación portable fuera del PATH: en PowerShell,
   `$env:Path = "$env:LOCALAPPDATA\nodejs;$env:Path"`.
 - PowerShell bloquea `npm.ps1`: usar `npm.cmd` / `npx.cmd`, o Git Bash.
-- Instalar: `npm.cmd install --no-package-lock --registry=https://registry.npmjs.org`.
-  El lockfile apunta a Replit hasta que se complete la tarea T1.3.
+- Instalar: `npm.cmd install` (o `npm.cmd ci`).
 
 ## Comandos
 
 | Comando | Qué hace |
 | --- | --- |
 | `npm start` | servidor en `http://localhost:5000` (requiere `SESSION_SECRET` para las rutas de sesión) |
+| `npm run lint` | ESLint sobre todo el repositorio (`eslint.config.mjs`) |
 | `npm test` | `node --test tests/*.test.mjs`, unos 20 s |
 | `npm run test:ui` | Playwright; necesita Chrome, Edge o Chromium |
 | `npm run start:prod` | modo producción: CSP aplicada, HSTS y comprobaciones fatales |
@@ -92,5 +95,5 @@ Están en `.agents/agents/` (se crean en la tarea T0.2 del plan, a partir de
 - **Para ejecutar, `model: flash`:** `dev-postava`, `frontend-developer`,
   `test-automator`, `refactoring-specialist`, `performance-engineer` y `postgres-pro`.
 
-`.claude/agents/` y `CLAUDE.md` son de Claude Code: no se borran. Si cambia una regla,
-se cambia primero aquí.
+`.claude/agents/` y `CLAUDE.md` son de Claude Code: no se borran. `AGENTS.md` es la única
+fuente de verdad para las reglas del proyecto; `CLAUDE.md` enlaza a este fichero.

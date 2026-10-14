@@ -110,10 +110,6 @@ function activeDays() {
   return state.days;
 }
 
-function total(key) {
-  return activeDays().reduce((sum, day) => sum + number(day[key]), 0);
-}
-
 function localSessionTime(session) {
   if (typeof session.startedAt !== "string") return "—";
   const date = new Date(session.startedAt);

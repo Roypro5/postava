@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: postava
+    runtime: node
+    plan: free
+    region: ohio
+    branch: main
+    buildCommand: npm ci
+    startCommand: node server.mjs --production
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: PGPORT
+        value: "5432"
+      - key: PGSSLMODE
+        value: require
+      # Secreto de presencia: Render genera un valor criptográfico aleatorio y lo mantiene estable entre despliegues
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_WEBHOOK_SIGNING_SECRET
+        sync: false
+      # Conexión a la rama "production" de Neon (AWS us-east-2, Ohio)
+      - key: PGHOST
+        sync: false
+      - key: PGUSER
+        sync: false
+      - key: PGPASSWORD
+        sync: false
+      - key: PGDATABASE
+        sync: false

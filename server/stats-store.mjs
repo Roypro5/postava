@@ -158,7 +158,7 @@ export function buildStats(rows) {
     day.measuredMs += goodMs + badMs;
     day.sessions.push({
       // Instante completo en ISO/UTC: el cliente lo formatea en hora local
-      // (agrupar por día sigue siendo en UTC, ver replit.md).
+      // (agrupar por día sigue siendo en UTC, ver docs/auth-verification.md).
       startedAt: startedAt.toISOString(),
       minutes: durationMinutes,
       score: score(goodMs, badMs),

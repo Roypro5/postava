@@ -1,5 +1,5 @@
 -- 0001_initial: tabla de sesiones de estadisticas de Postava.
--- PENDIENTE DE CONCILIAR CON pg_dump DE LA BD REAL (deducido del codigo).
+-- Conciliado en T3.1 como migracion canonica inicial.
 -- Si la tabla ya existe en tu base, NO apliques el Up: concilia primero con
 -- pg_dump y registra esta migracion como ya aplicada (ver db/README.md).
 

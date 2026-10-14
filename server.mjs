@@ -22,6 +22,7 @@ import { createRateLimiter } from "./server/rate-limit.mjs";
 import { applyProductionMode, checkStartupConfig } from "./server/startup-config.mjs";
 import { isClerkSecretKeyConfigured } from "./server/clerk-config.mjs";
 import { createLogThrottle } from "./server/log-throttle.mjs";
+import { createClerkWebhookHandler } from "./server/clerk-webhook.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 // The port is the first argument that is not a flag (`--production` may come first).
@@ -245,7 +246,7 @@ function clerkAuthentication() {
   return function clerkAuthenticationMiddleware(req, res, next) {
     // Only the session cookies authenticate a request to this server: the client
     // is same-origin and cookie-based and never sends its own Authorization header
-    // (replit.md; clerk-js only sends one to third-party analytics). The SDK would
+    // (docs/auth-verification.md; clerk-js only sends one to third-party analytics). The SDK would
     // otherwise honor a "Bearer" header ahead of the cookies, and a machine-token
     // prefix (mt_, oat_, ak_) makes it call Clerk's API on every request it sees.
     // (The Clerk proxy, which does forward what the client sent, never gets here.)
@@ -318,13 +319,37 @@ export function trustProxyHops() {
 }
 
 // `store` is only overridden by tests, to run the stats routes without a database.
-export function createApp({ store = statsStore } = {}) {
+export function createApp({
+  store = statsStore,
+  webhookSecret = process.env.CLERK_WEBHOOK_SIGNING_SECRET,
+  webhookNow,
+} = {}) {
   const app = express();
-  // Trust only the configured number of reverse-proxy hops (Replit puts one
-  // in front by default) instead of blindly trusting every hop, so that
+  // Trust only the configured number of reverse-proxy hops (1 by default)
+  // instead of blindly trusting every hop, so that
   // X-Forwarded-Host/-Proto/-For can't be spoofed by the client past that.
   app.set("trust proxy", trustProxyHops());
   app.disable("x-powered-by");
+
+  // Keyed by the verified Clerk user when available (so one account can't be
+  // starved by another sharing a NAT/proxy IP), falling back to the request
+  // IP for anonymous callers. `req.ip` honors "trust proxy" (see
+  // trustProxyHops): with the wrong hop count every visitor behind a proxy
+  // would share one bucket, and a client-written X-Forwarded-For can never
+  // pick its own bucket. Each createApp() call gets its own limiter
+  // instances, so tests never leak rate-limit state between apps.
+  const rateLimitKey = (req) => realClerkSession(req)?.userId || req.ip;
+  const limiters = {
+    authSessionWrite: createRateLimiter({ windowMs: 60_000, max: 30, keyFn: rateLimitKey }),
+    statsSessionWrite: createRateLimiter({ windowMs: 60_000, max: 30, keyFn: rateLimitKey }),
+    // GET /api/auth/session and GET /api/account share one bucket per caller;
+    // the client asks once per page load, so 60/min is far above real use.
+    sessionRead: createRateLimiter({ windowMs: 60_000, max: 60, keyFn: rateLimitKey }),
+    statsRead: createRateLimiter({ windowMs: 60_000, max: 60, keyFn: rateLimitKey }),
+    statsDelete: createRateLimiter({ windowMs: 60_000, max: 5, keyFn: rateLimitKey }),
+    clerkWebhook: createRateLimiter({ windowMs: 60_000, max: 120, keyFn: (req) => req.ip }),
+  };
+  for (const limiter of Object.values(limiters)) limiter.startCleanup();
 
   // With no proxyUrl, clerk-js talks to Clerk's Frontend API directly and the
   // CSP must allow exactly that host; it is the same key /api/auth/config hands
@@ -343,6 +368,24 @@ export function createApp({ store = statsStore } = {}) {
 
   // This raw streaming proxy must be mounted before all body parsers.
   app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+
+  // Clerk M2M webhook: mounted before express.json() with express.raw() to preserve
+  // the exact payload buffer required for Svix cryptographic signature verification.
+  // Rule 4 compliance: This is a server-to-server endpoint authenticated via Svix HMAC
+  // (not a user browser session), so it does not use the presence cookie.
+  const clerkWebhookHandler = createClerkWebhookHandler({
+    store,
+    webhookSecret,
+    now: webhookNow,
+  });
+  app.post(
+    "/api/webhooks/clerk",
+    noStore,
+    limiters.clerkWebhook.middleware,
+    express.raw({ type: "application/json", limit: "32kb" }),
+    clerkWebhookHandler,
+  );
+
   // Browser auth endpoints are same-origin only; do not reflect arbitrary CORS origins.
   // JSON only: no route reads form-encoded bodies (login is handled by
   // clerk-js, not by a <form> POST), so no urlencoded parser is mounted.
@@ -360,25 +403,7 @@ export function createApp({ store = statsStore } = {}) {
   app.use("/api/auth", noStore);
   app.use("/api/account", noStore);
   app.use("/api/stats", noStore);
-
-  // Keyed by the verified Clerk user when available (so one account can't be
-  // starved by another sharing a NAT/proxy IP), falling back to the request
-  // IP for anonymous callers. `req.ip` honors "trust proxy" (see
-  // trustProxyHops): with the wrong hop count every visitor behind a proxy
-  // would share one bucket, and a client-written X-Forwarded-For can never
-  // pick its own bucket. Each createApp() call gets its own limiter
-  // instances, so tests never leak rate-limit state between apps.
-  const rateLimitKey = (req) => realClerkSession(req)?.userId || req.ip;
-  const limiters = {
-    authSessionWrite: createRateLimiter({ windowMs: 60_000, max: 30, keyFn: rateLimitKey }),
-    statsSessionWrite: createRateLimiter({ windowMs: 60_000, max: 30, keyFn: rateLimitKey }),
-    // GET /api/auth/session and GET /api/account share one bucket per caller;
-    // the client asks once per page load, so 60/min is far above real use.
-    sessionRead: createRateLimiter({ windowMs: 60_000, max: 60, keyFn: rateLimitKey }),
-    statsRead: createRateLimiter({ windowMs: 60_000, max: 60, keyFn: rateLimitKey }),
-    statsDelete: createRateLimiter({ windowMs: 60_000, max: 5, keyFn: rateLimitKey }),
-  };
-  for (const limiter of Object.values(limiters)) limiter.startCleanup();
+  app.use("/api/webhooks", noStore);
 
   app.get("/api/auth/config", (req, res) => {
     res.json(clerkBrowserConfig(req));
@@ -473,11 +498,18 @@ export function createApp({ store = statsStore } = {}) {
     ["/settings.js", "settings.js"],
     ["/overlay.js", "overlay.js"],
     ["/login.css", "login.css"],
-    ["/auth-adapter.js", "auth-adapter.js"],
     ["/login.js", "login.js"],
     ["/account.js", "account.js"],
     ["/logo.svg", "logo.svg"],
     ["/assets/auth-adapter.bundle.js", "assets/auth-adapter.bundle.js"],
+    ["/assets/fonts/dm-sans-400.woff2", "assets/fonts/dm-sans-400.woff2"],
+    ["/assets/fonts/dm-sans-500.woff2", "assets/fonts/dm-sans-500.woff2"],
+    ["/assets/fonts/dm-sans-600.woff2", "assets/fonts/dm-sans-600.woff2"],
+    ["/assets/fonts/dm-sans-700.woff2", "assets/fonts/dm-sans-700.woff2"],
+    ["/assets/fonts/manrope-600.woff2", "assets/fonts/manrope-600.woff2"],
+    ["/assets/fonts/manrope-700.woff2", "assets/fonts/manrope-700.woff2"],
+    ["/assets/fonts/manrope-800.woff2", "assets/fonts/manrope-800.woff2"],
+    ["/assets/fonts/LICENSE-OFL.txt", "assets/fonts/LICENSE-OFL.txt"],
   ]);
 
   app.get("/", (_req, res) => res.sendFile(resolve(root, "index.html")));

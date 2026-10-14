@@ -4,7 +4,7 @@
 // pattern already used for stats-session.js.
 
 // Franjas horarias en hora LOCAL del navegador (el servidor solo agrupa los
-// días por fecha UTC, ver replit.md; la fatiga se calcula aquí porque
+// días por fecha UTC, ver db/README.md; la fatiga se calcula aquí porque
 // necesita la hora local real de cada sesión). Cubren las 24 h en bloques de
 // 2 h para no descartar en silencio las sesiones nocturnas/de madrugada.
 export const FATIGUE_BUCKETS = Array.from({ length: 12 }, (_, index) => {

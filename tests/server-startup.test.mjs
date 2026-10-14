@@ -17,6 +17,7 @@ import {
 // 32 bytes con variedad de sobra (un secreto "s".repeat(32) mide lo mismo pero ya no vale: ver la prueba de entropía).
 const GOOD_SECRET = "Xk3-9fQmZ2vB8rLwT5nYc7HdJ4pAeU1s";
 const CLERK_KEY = "sk_test_placeholder_not_a_real_key";
+const WEBHOOK_KEY = "whsec_test_placeholder_not_a_real_secret";
 
 test("el mínimo del secreto de sesión son 32 bytes", () => {
   assert.equal(MIN_SESSION_SECRET_BYTES, 32);
@@ -25,7 +26,12 @@ test("el mínimo del secreto de sesión son 32 bytes", () => {
 
 test("producción con la configuración correcta arranca sin errores ni avisos", () => {
   const result = checkStartupConfig({
-    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_SECRET_KEY: CLERK_KEY },
+    env: {
+      NODE_ENV: "production",
+      SESSION_SECRET: GOOD_SECRET,
+      CLERK_SECRET_KEY: CLERK_KEY,
+      CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+    },
   });
   assert.deepEqual(result, { errors: [], warnings: [] });
 });
@@ -73,7 +79,7 @@ test("fuera de producción un secreto ausente o corto solo genera un aviso", () 
 
 test("producción sin CLERK_SECRET_KEY avisa (el proxy de Clerk queda desactivado) pero no impide arrancar", () => {
   const { errors, warnings } = checkStartupConfig({
-    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET },
+    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY },
   });
   assert.deepEqual(errors, []);
   assert.equal(warnings.length, 1);
@@ -89,10 +95,53 @@ test("producción sin CLERK_SECRET_KEY avisa (el proxy de Clerk queda desactivad
   // Una clave vacía o en blanco cuenta como no configurada, igual que en server.mjs y en el proxy de Clerk.
   for (const blank of ["", " ", "   ", "\n", "\t \n"]) {
     const result = checkStartupConfig({
-      env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_SECRET_KEY: blank },
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: GOOD_SECRET,
+        CLERK_SECRET_KEY: blank,
+        CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+      },
     });
     assert.equal(result.warnings.length, 1, JSON.stringify(blank));
   }
+});
+
+test("producción sin CLERK_WEBHOOK_SIGNING_SECRET avisa (webhook desconfigurado) pero no impide arrancar", () => {
+  const { errors, warnings } = checkStartupConfig({
+    env: { NODE_ENV: "production", SESSION_SECRET: GOOD_SECRET, CLERK_SECRET_KEY: CLERK_KEY },
+  });
+  assert.deepEqual(errors, []);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /CLERK_WEBHOOK_SIGNING_SECRET/);
+  assert.match(warnings[0], /\/api\/webhooks\/clerk/);
+  assert.match(warnings[0], /503 WEBHOOK_UNCONFIGURED/);
+  assert.match(warnings[0], /db\/delete-user\.sql/);
+
+  // Una clave vacía o en blanco cuenta como no configurada.
+  for (const blank of ["", " ", "   ", "\n", "\t \n"]) {
+    const result = checkStartupConfig({
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: GOOD_SECRET,
+        CLERK_SECRET_KEY: CLERK_KEY,
+        CLERK_WEBHOOK_SIGNING_SECRET: blank,
+      },
+    });
+    assert.equal(result.warnings.length, 1, JSON.stringify(blank));
+  }
+});
+
+test("producción con CLERK_WEBHOOK_SIGNING_SECRET configurada no genera aviso de webhook", () => {
+  const { errors, warnings } = checkStartupConfig({
+    env: {
+      NODE_ENV: "production",
+      SESSION_SECRET: GOOD_SECRET,
+      CLERK_SECRET_KEY: CLERK_KEY,
+      CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+    },
+  });
+  assert.deepEqual(errors, []);
+  assert.deepEqual(warnings, []);
 });
 
 /* ── Secretos de ejemplo del repositorio ─────────────────────────────────────
@@ -126,7 +175,12 @@ test("producción rechaza como SESSION_SECRET los valores de ejemplo del reposit
   for (const [origin, secret] of examples) {
     assert.ok(Buffer.byteLength(secret, "utf8") >= MIN_SESSION_SECRET_BYTES, `${origin}: el ejemplo ya supera la longitud mínima`);
     const { errors, warnings } = checkStartupConfig({
-      env: { NODE_ENV: "production", SESSION_SECRET: secret, CLERK_SECRET_KEY: CLERK_KEY },
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: secret,
+        CLERK_SECRET_KEY: CLERK_KEY,
+        CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+      },
     });
     assert.equal(errors.length, 1, origin);
     assert.match(errors[0], /SESSION_SECRET/, origin);
@@ -205,7 +259,12 @@ test("producción rechaza un SESSION_SECRET de longitud suficiente pero sin vari
   for (const [label, secret] of Object.entries(LOW_ENTROPY)) {
     assert.ok(Buffer.byteLength(secret, "utf8") >= MIN_SESSION_SECRET_BYTES, `${label}: cumple la longitud, así que solo lo detiene la entropía`);
     const { errors, warnings } = checkStartupConfig({
-      env: { NODE_ENV: "production", SESSION_SECRET: secret, CLERK_SECRET_KEY: CLERK_KEY },
+      env: {
+        NODE_ENV: "production",
+        SESSION_SECRET: secret,
+        CLERK_SECRET_KEY: CLERK_KEY,
+        CLERK_WEBHOOK_SIGNING_SECRET: WEBHOOK_KEY,
+      },
     });
     assert.equal(errors.length, 1, label);
     assert.match(errors[0], /SESSION_SECRET/, label);
@@ -306,7 +365,7 @@ test("`node server.mjs` con NODE_ENV=production y un SESSION_SECRET corto sale c
   assert.ok(!result.stderr.includes("corto"), "no debe imprimir el valor del secreto");
 });
 
-/* ── Modo producción: --production y REPLIT_DEPLOYMENT ───────────────────── */
+/* ── Modo producción: --production y NODE_ENV ────────────────────────────── */
 
 test("applyProductionMode: --production fija NODE_ENV=production, también si venía otro valor", () => {
   for (const initial of [undefined, "", "  ", "production"]) {
@@ -346,36 +405,12 @@ test("applyProductionMode: puerto y --production válidos no avisan; un typo jun
   assert.equal(env.NODE_ENV, "production");
 });
 
-test("applyProductionMode: sin flag ni despliegue de Replit no toca el entorno ni avisa", () => {
-  for (const env of [{}, { NODE_ENV: "development" }, { REPLIT_DEPLOYMENT: "0" }, { REPLIT_DEPLOYMENT: "true" }]) {
+test("applyProductionMode: sin flag no toca el entorno ni avisa", () => {
+  for (const env of [{}, { NODE_ENV: "development" }]) {
     const before = { ...env };
     assert.deepEqual(applyProductionMode({ argv: ["5000"], env }), []);
     assert.deepEqual(env, before);
   }
-});
-
-test("applyProductionMode: REPLIT_DEPLOYMENT=1 sin NODE_ENV se trata como producción y avisa en voz alta", () => {
-  for (const blank of [undefined, "", "  "]) {
-    const env = { REPLIT_DEPLOYMENT: "1" };
-    if (blank !== undefined) env.NODE_ENV = blank;
-    const warnings = applyProductionMode({ argv: [], env });
-    assert.equal(env.NODE_ENV, "production", JSON.stringify(blank));
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /REPLIT_DEPLOYMENT=1/);
-    assert.match(warnings[0], /PRODUCTION/);
-  }
-});
-
-test("applyProductionMode: en un despliegue de Replit un NODE_ENV explícito se respeta (con aviso si no es production)", () => {
-  const dev = { REPLIT_DEPLOYMENT: "1", NODE_ENV: "development" };
-  const warnings = applyProductionMode({ argv: [], env: dev });
-  assert.equal(dev.NODE_ENV, "development");
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /WITHOUT production hardening/);
-
-  const prod = { REPLIT_DEPLOYMENT: "1", NODE_ENV: "production" };
-  assert.deepEqual(applyProductionMode({ argv: [], env: prod }), []);
-  assert.equal(prod.NODE_ENV, "production");
 });
 
 test("package.json: start:prod arranca con --production y start sigue igual", () => {
@@ -388,7 +423,6 @@ test("package.json: start:prod arranca con --production y start sigue igual", ()
 function runWeakSecretServer(args, env) {
   const cleanEnv = { ...process.env, SESSION_SECRET: "corto", CLERK_SECRET_KEY: CLERK_KEY, CLERK_TELEMETRY_DISABLED: "1" };
   delete cleanEnv.NODE_ENV;
-  delete cleanEnv.REPLIT_DEPLOYMENT;
   return spawnSync(process.execPath, ["server.mjs", ...args], {
     cwd: new URL("../", import.meta.url),
     env: { ...cleanEnv, ...env },
@@ -406,13 +440,4 @@ test("`node server.mjs <puerto> --production` (y con el flag primero) activa pro
     assert.match(result.stderr, /Refusing to start/);
     assert.doesNotMatch(result.stdout, /listening/);
   }
-});
-
-test("`node server.mjs` con REPLIT_DEPLOYMENT=1 y sin NODE_ENV avisa y aplica las comprobaciones de producción", () => {
-  const result = runWeakSecretServer(["54872"], { REPLIT_DEPLOYMENT: "1" });
-  assert.equal(result.error, undefined, String(result.error));
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /REPLIT_DEPLOYMENT=1 and NODE_ENV is not set/);
-  assert.match(result.stderr, /SESSION_SECRET is too short/);
-  assert.doesNotMatch(result.stdout, /listening/);
 });
