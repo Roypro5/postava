@@ -38,15 +38,20 @@ if (!runIntegration) {
     }
 
     function createSession(overrides = {}) {
+      const durationMinutes = overrides.durationMinutes ?? 25;
+      const totalMs = durationMinutes * 60_000;
+      const defaultGoodMs = Math.round(totalMs * 0.75);
+      const defaultBadMs = totalMs - defaultGoodMs;
+
       return {
         id: crypto.randomUUID(),
         expectedUserId: TEST_USER,
         type: "focus",
         completed: true,
-        durationMinutes: 25,
+        durationMinutes,
         startedAt: new Date().toISOString(),
-        goodMs: 900_000,
-        badMs: 300_000,
+        goodMs: defaultGoodMs,
+        badMs: defaultBadMs,
         issues: { neck: 2, shoulders: 1, tilt: 0, distance: 1 },
         issuesUnit: "count",
         alerts: 2,
@@ -125,10 +130,14 @@ if (!runIntegration) {
       const sessionEndDay = createSession({
         startedAt: `${dayA}T23:59:59.000Z`,
         durationMinutes: 15,
+        goodMs: 600_000,
+        badMs: 300_000,
       });
       const sessionStartNextDay = createSession({
         startedAt: `${dayB}T00:00:00.000Z`,
         durationMinutes: 15,
+        goodMs: 600_000,
+        badMs: 300_000,
       });
 
       const resEnd = await store.saveSession(TEST_USER, sessionEndDay);
