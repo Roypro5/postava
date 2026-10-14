@@ -164,6 +164,7 @@ sale siempre de Clerk en el servidor, nunca del navegador.
 | `NODE_ENV` | `production` activa el endurecimiento: CSP aplicada (si no, solo Report-Only), HSTS, proxy de Clerk y comprobaciones fatales de `SESSION_SECRET`. Usa `npm run start:prod` (equivale a `node server.mjs 5000 --production`, portable a Windows) o `NODE_ENV=production`. Si no está definido o tiene otro valor, corre en modo desarrollo |
 | `REPLIT_DEPLOYMENT` | opcional (`1`); compatibilidad heredada que infiere producción si `NODE_ENV` no está definido |
 | `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGPORT` | conexión de `pg` (`new Pool()` sin argumentos; `DATABASE_URL` no se lee) a la base de datos de estadísticas (`server/stats-store.mjs`, tabla `posture_stats_sessions`) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | clave de firma Svix para verificar webhooks de Clerk (`POST /api/webhooks/clerk`) y procesar eventos `user.deleted` automáticamente |
 
 Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
 
@@ -328,7 +329,7 @@ muestra el diagrama de más abajo.
 | `auth-adapter.js` | adaptador de Clerk para el cliente; se empaqueta con esbuild al arrancar el servidor |
 | `server.mjs` | servidor Express: allowlist de estáticos, proxy de Clerk, cookie de presencia y API de sesión/estadísticas |
 | `db/` | `schema.sql`, `migrations/` (Up/Down), `purge-old.sql`, `delete-user.sql` y `README.md` con cómo aplicarlos a mano (nunca al arrancar) |
-| `server/` | `session-cookie.mjs` (cookie de presencia firmada), `stats-store.mjs` (estadísticas en PostgreSQL), `security-headers.mjs` (cabeceras de seguridad y CSP), `rate-limit.mjs` (limitador de peticiones en memoria), `middlewares/` (proxy de Clerk) |
+| `server/` | `session-cookie.mjs` (cookie de presencia firmada), `stats-store.mjs` (estadísticas en PostgreSQL), `clerk-webhook.mjs` (verificación Svix de webhooks de Clerk), `security-headers.mjs` (cabeceras de seguridad y CSP), `rate-limit.mjs` (limitador de peticiones en memoria), `middlewares/` (proxy de Clerk) |
 | `tests/` | pruebas `node --test` y especificaciones de Playwright |
 
 Todos los ficheros públicos están en la allowlist de `server.mjs`

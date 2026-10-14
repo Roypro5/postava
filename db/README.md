@@ -60,7 +60,12 @@ psql -v ON_ERROR_STOP=1 -f db/purge-old.sql
 
 ## Usuario de Clerk eliminado
 
-Hasta que exista un webhook `user.deleted`, el borrado es manual:
+Postava procesa automáticamente el webhook `user.deleted` de Clerk en
+`POST /api/webhooks/clerk` (verificado mediante firma criptográfica Svix con
+`CLERK_WEBHOOK_SIGNING_SECRET`), borrando todas las sesiones del usuario de forma
+idempotente.
+
+Para borrado manual (fallback o emergencias):
 
 ```sh
 psql -v ON_ERROR_STOP=1 -v user_id="'user_XXXXXXXX'" -f db/delete-user.sql
