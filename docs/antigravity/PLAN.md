@@ -374,7 +374,7 @@ de crear las cuentas):**
 **Responsable:** el usuario, con ayuda de `postgres-pro`. Toca la base real (ver `AGENTS.md`).
 
 1. El usuario crea un proyecto en Neon (PostgreSQL 16, región cercana a la de Render) con
-   dos ramas: `main` (producción) y `dev`.
+   dos ramas: `production` y `dev`.
 2. Pega el bloque *Up* de `db/migrations/0001_initial.sql` en el editor SQL de cada rama.
 3. Comprueba las columnas con
    `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'posture_stats_sessions';`
@@ -421,7 +421,7 @@ configuración y la documentación).
    - `SESSION_SECRET`, aleatoria (`openssl rand -base64 48`);
    - `CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` de la instancia de **desarrollo**;
    - `VITE_CLERK_PROXY_URL` vacía;
-   - `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` y `PGPORT` de la rama `main` de Neon, más `PGSSLMODE=require`;
+   - `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` y `PGPORT` de la rama `production` de Neon, más `PGSSLMODE=require`;
    - `TRUST_PROXY_HOPS`.
 3. **`TRUST_PROXY_HOPS`:** verificar el número real de saltos del proxy de Render antes de
    fijarlo, porque el rate limit depende de `req.ip`. Hay que comparar `X-Forwarded-For` con
@@ -491,7 +491,7 @@ y abrir el PR.
 | T3.2 | Webhook de Clerk | ☑ | `51c3f56` | Webhook user.deleted verificado con Svix HMAC nativo, idempotente y con rate limit |
 | T5.1 | Restos de Replit en el código | ☑ | `9b91c49` | Eliminado REPLIT_DEPLOYMENT/REPLIT_DEV_DOMAIN, tests ajustados y cero referencias |
 | T5.2 | Documentación de la BD | ☑ | `5eed775` | Documentadas variables PG*, PGSSLMODE=require y aplicación en Neon web/psql |
-| T5.3 | BD en Neon | ☑ | — | Creada en Neon (PG 16, AWS us-east-2), ramas main y dev, esquema 0001_initial verificado |
+| T5.3 | BD en Neon | ☑ | — | Creada en Neon (PG 16, AWS us-east-2), ramas production y dev, esquema 0001_initial verificado |
 | T5.4 | Test de integración con PostgreSQL | ☑ | `63a5cc0` | Suite opcional con `PG_INTEGRATION=1` (guardar, duplicados, bordes UTC, límite minutos y deleteAll) |
 | T5.5 | Despliegue en Render | ☐ | | ⛔ |
 | T5.6 | Verificación del despliegue | ☐ | | |

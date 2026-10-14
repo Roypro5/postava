@@ -46,7 +46,7 @@ el cual lee **exclusivamente** las variables de entorno estándar `PG*`:
 ### Opción A · Desde el editor SQL web de Neon (sin instalar `psql`)
 
 1. Accede a la consola de Neon (<https://console.neon.tech>) y abre tu proyecto.
-2. Selecciona la rama correspondiente (`dev` para desarrollo o `main` para producción).
+2. Selecciona la rama correspondiente (`dev` para desarrollo o `production` para producción).
 3. Entra en la pestaña **SQL Editor** del menú lateral.
 4. Abre en tu editor el fichero [`db/migrations/0001_initial.sql`](migrations/0001_initial.sql).
 5. Copia el bloque **Up** (o todo el contenido del fichero, ya que el bloque Down está comentado).

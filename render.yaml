@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: postava
+    runtime: node
+    plan: free
+    region: ohio
+    branch: main
+    buildCommand: npm ci
+    startCommand: node server.mjs --production
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22.15.0"
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: VITE_CLERK_PROXY_URL
+        value: ""
+      - key: PGPORT
+        value: "5432"
+      - key: PGSSLMODE
+        value: require
+      # Secretos y credenciales de producción (gestionados en el panel de Render, nunca en el repositorio)
+      - key: SESSION_SECRET
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_WEBHOOK_SIGNING_SECRET
+        sync: false
+      # Conexión a la rama "production" de Neon (AWS us-east-2, Ohio)
+      - key: PGHOST
+        sync: false
+      - key: PGUSER
+        sync: false
+      - key: PGPASSWORD
+        sync: false
+      - key: PGDATABASE
+        sync: false

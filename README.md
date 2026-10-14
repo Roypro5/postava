@@ -187,6 +187,43 @@ Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
   `clerk-telemetry.com` ya no está en el `connect-src` de la CSP.
 - Una ruta `/api/*` inexistente responde `404 {"error":"not_found"}`.
 
+## Despliegue en producción (Render + Neon)
+
+Postava está preparada para desplegarse a coste 0 € con la siguiente arquitectura:
+
+| Componente | Servicio | Plan y región | Notas operativas |
+| --- | --- | --- | --- |
+| **Web Service** | [Render](https://render.com) | Free, región Ohio (`us-east-2`) | HTTPS en `https://<tu-app>.onrender.com`. En el plan gratuito se suspende tras 15 minutos sin peticiones y tarda ~50-60 segundos en despertar (*cold start*) al recibir tráfico nuevo. |
+| **Base de datos** | [Neon](https://neon.tech) | Free, AWS Ohio (`us-east-2`) | PostgreSQL 16 con dos ramas: `production` (para el despliegue en Render) y `dev` (desarrollo y pruebas de integración). Exige `PGSSLMODE=require`. |
+| **Autenticación** | [Clerk](https://clerk.com) | Instancia de **desarrollo** | Claves `pk_test` y `sk_test`. Funciona sin requerir dominio propio configurando `VITE_CLERK_PROXY_URL=""` (clerk-js conecta directo con el host de Clerk, permitido por la CSP). |
+
+### Blueprint (`render.yaml`)
+
+El repositorio incluye [`render.yaml`](render.yaml) para crear o sincronizar automáticamente el servicio web en Render con:
+- **Runtime:** `node`
+- **Build:** `npm ci`
+- **Start:** `node server.mjs --production` (Render inyecta la variable `PORT` automáticamente; el servidor prioriza ese puerto y activa el modo producción)
+- **Health check:** `/healthz` (liveness simple que responde 200 sin tocar la BD ni exigir sesión)
+
+### Variables de entorno en el panel de Render
+
+Ningún secreto se almacena en el repositorio; en `render.yaml` van con `sync: false`. Se configuran manualmente en la sección *Environment* del panel de Render:
+
+| Variable | Valor requerido |
+| --- | --- |
+| `SESSION_SECRET` | Cadena aleatoria de al menos 32 bytes (generada con `openssl rand -base64 48`) para firmar la cookie de presencia |
+| `CLERK_PUBLISHABLE_KEY` | Clave pública de la instancia de desarrollo de Clerk (`pk_test_...`) |
+| `CLERK_SECRET_KEY` | Clave secreta de la instancia de desarrollo de Clerk (`sk_test_...`) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | Secreto de firma Svix (`whsec_...`) del webhook configurado en Clerk apuntando a `https://<tu-app>.onrender.com/api/webhooks/clerk` suscrito a `user.deleted` |
+| `VITE_CLERK_PROXY_URL` | Dejar **vacía** (valor `""`) |
+| `PGHOST` | Host de la rama `production` de Neon |
+| `PGUSER` | Usuario de la rama `production` de Neon |
+| `PGPASSWORD` | Contraseña de la rama `production` de Neon |
+| `PGDATABASE` | Nombre de la base de datos de la rama `production` de Neon |
+| `PGPORT` | `5432` |
+| `PGSSLMODE` | `require` (obligatorio para Neon) |
+| `TRUST_PROXY_HOPS` | `1` por defecto (se verificará en la tarea T5.6 comparando la cabecera `X-Forwarded-For` de Render con una petición real) |
+
 ## Desarrollo con agentes (Antigravity / Claude Code)
 
 El proyecto se puede desarrollar con agentes de IA. [`AGENTS.md`](AGENTS.md) es la
