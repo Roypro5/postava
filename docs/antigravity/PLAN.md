@@ -435,6 +435,9 @@ configuración y la documentación).
 
 **Subagentes:** `test-automator` y `security-auditor`.
 
+**Orden:** se hace **después de la [Fase 6](#fase-6--renombrar-a-postora)**, sobre
+`https://postora.onrender.com`.
+
 1. `GET /healthz` → 200.
 2. Pomodoro y cámara sin cuenta (HTTPS, permiso de cámara).
 3. Login con Clerk de desarrollo y bloque completado → fila en Neon.
@@ -468,6 +471,100 @@ y abrir el PR.
 
 ---
 
+## Fase 6 · Renombrar a Postora
+
+Rama: `chore/fase-6-postora`, creada desde `main`.
+
+Ya existe otra marca llamada «Postava», así que el proyecto pasa a llamarse **Postora**. La
+app nunca se publicó: no hay usuarios, datos ni sesiones que migrar, así que se renombran
+también los identificadores internos sin capa de compatibilidad.
+
+**Comprobado el 2026-10-14:** `Roypro5/postora` no existe en GitHub, `postora.onrender.com` no
+está en uso y no hay ninguna app llamada Postora (la más parecida es *Postoria*, un
+programador de publicaciones para redes sociales).
+
+**Qué NO se renombra:**
+
+- las tablas e índices de la base de datos (`posture_stats_sessions`…), que no llevan la marca;
+- el histórico: los commits y las filas ya cerradas de la tabla de seguimiento;
+- el informe [AUDITORIA.md](AUDITORIA.md), que describe el estado a 2026-10-07;
+- la carpeta local del proyecto (opcional, ver T6.4).
+
+### T6.1 · Renombrar en el repositorio
+
+**Subagentes:** `refactoring-specialist` (ejecuta) y `revisor-proyectos` (revisa).
+`security-auditor` revisa el cambio de nombre de la cookie.
+
+1. **Textos visibles:** «Postava» → «Postora» en `index.html`, `login.html`, `stats.html`,
+   `ui.js`, `theme.js`, los textos de notificaciones y el log de arranque
+   (`Postava listening on port …`).
+2. **Identificadores internos:**
+
+   | Antes | Después |
+   | --- | --- |
+   | claves de `localStorage` (`postava.v1`, `postava.theme`, `postava.stats.pending.v2`, `postava.stats.cleared`) | `postora.…` |
+   | cookie `postava_presence` | `postora_presence` |
+   | `POSTAVA_MOCK_CLERK` | `POSTORA_MOCK_CLERK` |
+   | `window.postavaDebug` | `window.postoraDebug` |
+   | resto de prefijos (`postava-phase`, `postava-posture`, `postava.clerk*`, `postavaWiring` en tests) | `postora…` |
+
+3. **Configuración y documentación:**
+   - `package.json` (`name`), el servicio de `render.yaml` (`name: postora`) y `.claude/launch.json`;
+   - `README.md`, `AGENTS.md`, `CLAUDE.md`, `db/README.md`, `docs/auth-verification.md` y la cabecera de este plan.
+4. **Subagentes:** renombrar `dev-postava` a `dev-postora`, en `.claude/agents/` y en
+   `.agents/agents/` (nombre de fichero, `name:` y menciones). Es el único cambio permitido en
+   `.claude/agents/` en esta tarea.
+5. **Tests:** ajustar los que comprueban nombres o claves (`tests/app-wiring.test.mjs`,
+   `tests/settings.test.mjs`, `tests/notifications.test.mjs` y otros).
+
+**Hecho cuando:**
+
+- `git grep -i postava` solo devuelve histórico permitido (este plan, `AUDITORIA.md`) y las URL del repositorio de GitHub, que se cambian en T6.2;
+- `npm run lint`, `npm test` y `npm run test:ui` siguen en verde.
+
+**Commit:** `T6.1: rename Postava to Postora across UI, identifiers and docs`.
+
+### ⛔ T6.2 · Renombrar el repositorio en GitHub
+
+**Responsable:** el usuario.
+
+1. **Antes de mergear T6.1, en Render:** borrar el Blueprint `postava` y su servicio (Blueprint
+   › Settings › Delete). Si no, al cambiar `name` en `render.yaml` la sincronización automática
+   crearía un servicio `postora` sin variables, junto al antiguo.
+2. En GitHub: Settings › General › Repository name: `postava` → `postora`. GitHub redirige la
+   URL antigua.
+3. En local: `git remote set-url origin https://github.com/Roypro5/postora.git`.
+4. Actualizar las URL `github.com/Roypro5/postava` del README y de este plan, en un commit
+   aparte: `T6.2: point repository URLs to Roypro5/postora`.
+
+### ⛔ T6.3 · Nuevo servicio en Render
+
+**Responsable:** el usuario, con ayuda del agente principal.
+
+1. Render › New › Blueprint › `Roypro5/postora`, rama `main`, Blueprint Name `postora`.
+2. Rellenar las variables `sync: false`:
+   - las de Neon `production`: `PGHOST`, `PGUSER`, `PGPASSWORD` y `PGDATABASE`;
+   - las de Clerk de desarrollo: `CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY`;
+   - `CLERK_WEBHOOK_SIGNING_SECRET` puede quedar vacía hasta T5.6.
+3. Si la sincronización no lanza el despliegue: *Manual Deploy › Deploy latest commit*.
+4. Comprobar que `https://postora.onrender.com/healthz` responde 200.
+
+### T6.4 · Nombres cosméticos (opcional)
+
+**Responsable:** el usuario.
+
+- **Neon:** Settings › Project name → `Postora`.
+- **Clerk:** Settings › Application name → `Postora`. Las claves no cambian.
+- **Carpeta local:** se puede dejar como `postava`. Si se renombra, hay que reabrir el proyecto
+  en Antigravity y en Claude Code, que guardan su memoria por ruta.
+
+### ⛔ Puerta F6
+
+Resumen al usuario y permiso para hacer push y abrir el PR. **Orden obligatorio:** borrar el
+servicio antiguo en Render (T6.2, paso 1) **antes** de mergear.
+
+---
+
 ## Seguimiento
 
 | ID | Tarea | Estado | Commit | Notas |
@@ -497,3 +594,8 @@ y abrir el PR.
 | T5.6 | Verificación del despliegue | ☐ | | |
 | T5.7 | Dominio propio y Clerk de producción | ☐ | | ⛔ Diferida |
 | F5 | Puerta Fase 5 | ☐ | | ⛔ |
+| T6.1 | Renombrar en el repositorio | ☐ | | |
+| T6.2 | Renombrar el repositorio en GitHub | ☐ | | ⛔ La hace el usuario |
+| T6.3 | Nuevo servicio en Render | ☐ | | ⛔ La hace el usuario |
+| T6.4 | Nombres cosméticos | ☐ | | Opcional |
+| F6 | Puerta Fase 6 | ☐ | | ⛔ |
