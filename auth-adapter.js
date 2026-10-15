@@ -181,7 +181,7 @@ export function authError(error) {
     return "La contraseña no cumple la longitud mínima configurada para las cuentas. Prueba con una frase más larga.";
   if (code === "form_identifier_exists") return "Este correo ya está registrado. Inicia sesión o usa «¿Olvidaste tu contraseña?» para recuperar el acceso.";
   if (error?.status === 429 || code === "too_many_requests") return "Demasiados intentos. Espera unos minutos antes de volver a intentarlo.";
-  if (error?.message === "INCOMPLETE_ACCOUNT") return "La cuenta requiere datos adicionales. Contacta con la administración de Postava.";
+  if (error?.message === "INCOMPLETE_ACCOUNT") return "La cuenta requiere datos adicionales. Contacta con la administración de Postora.";
   if (error?.message === "UNSUPPORTED_FACTOR") return "Tu cuenta requiere un método de verificación no disponible en esta pantalla.";
   return "No se pudo completar la solicitud. Comprueba tu conexión e inténtalo de nuevo.";
 }

@@ -1,5 +1,5 @@
 {
-  "name": "postava",
+  "name": "postora",
   "version": "1.0.0",
   "private": true,
   "description": "Pomodoro con corrección de postura en tiempo real. Todo se ejecuta en el navegador: el vídeo **nunca** sale de tu equipo.",

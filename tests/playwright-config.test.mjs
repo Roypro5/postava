@@ -1,4 +1,4 @@
-// Contrato de playwright.config.mjs: cuándo se mockea Clerk (POSTAVA_MOCK_CLERK), cuándo se ignora el
+// Contrato de playwright.config.mjs: cuándo se mockea Clerk (POSTORA_MOCK_CLERK), cuándo se ignora el
 // proxy del sistema (--no-proxy-server) y cuándo se reutiliza un servidor ya levantado. No arranca
 // Playwright ni un navegador: solo importa la configuración con distintos entornos y comprueba lo que
 // decide. Así, la lógica que decide si tests/auth-ui.spec.mjs mockea el proveedor tiene respaldo
@@ -35,7 +35,7 @@ const ENV_KEYS = [
   "CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
   "SESSION_SECRET",
-  "POSTAVA_MOCK_CLERK",
+  "POSTORA_MOCK_CLERK",
 ];
 
 let importCounter = 0;
@@ -49,7 +49,7 @@ async function loadConfig(env = {}) {
     const url = new URL("../playwright.config.mjs", import.meta.url);
     url.searchParams.set("case", String(++importCounter));
     const { default: config } = await import(url.href);
-    return { config, mockClerk: process.env.POSTAVA_MOCK_CLERK };
+    return { config, mockClerk: process.env.POSTORA_MOCK_CLERK };
   } finally {
     for (const key of ENV_KEYS) {
       if (saved[key] === undefined) delete process.env[key];

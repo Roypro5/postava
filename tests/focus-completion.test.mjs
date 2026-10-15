@@ -247,7 +247,7 @@ test("con la cola real: el cuerpo enviado se construye antes de focusStats.reset
   assert.equal(posts[0].body.expectedUserId, USER);
   assert.equal(posts[0].body.durationMinutes, 25);
   assert.equal(posts[0].body.goodMs, 20 * MIN);
-  assert.equal(storage.get(`postava.stats.pending.v2:${USER}`), "[]", "cola vaciada tras el envío");
+  assert.equal(storage.get(`postora.stats.pending.v2:${USER}`), "[]", "cola vaciada tras el envío");
 
   // Y un skip posterior no añade envíos.
   s.elapse(5 * MIN);

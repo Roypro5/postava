@@ -16,7 +16,7 @@ export const CLERK_PROXY_PATH = "/api/__clerk";
 export const CLERK_PROXY_UPSTREAM_TIMEOUT_MS = 10_000;
 export const CLERK_PROXY_MAX_BUFFERED_BYTES = 2 * 1024 * 1024;
 
-const TIMED_OUT = Symbol("postava.clerkProxyTimedOut");
+const TIMED_OUT = Symbol("postora.clerkProxyTimedOut");
 
 function sendProxyError(res, status, error) {
   if (res.writableEnded) return;
@@ -80,12 +80,12 @@ const SPOOFABLE_CLIENT_IP_HEADERS = [
 // Headers with which a client could claim a different public host or port.
 const CLIENT_FORWARDED_ORIGIN_HEADERS = ["x-forwarded-host", "x-forwarded-port"];
 
-// Cookies owned by this app (the `__Host-postava_presence` marker, with or
+// Cookies owned by this app (the `__Host-postora_presence` marker, with or
 // without the `__Host-`/`__Secure-` prefixes) have no business at Clerk. The
 // rest of the Cookie header must still reach it: in proxy mode Clerk's own
 // `__client` cookie lives on this origin and is how the Frontend API
 // recognises the browser (@clerk/backend's own proxy forwards it as well).
-const APP_COOKIE_NAME = /^(?:__Host-|__Secure-)?postava/i;
+const APP_COOKIE_NAME = /^(?:__Host-|__Secure-)?postora/i;
 
 export function stripAppCookies(cookieHeader) {
   if (typeof cookieHeader !== "string") return "";

@@ -13,7 +13,7 @@ import {
 // known not to (there the account features, never the guest Pomodoro, need an
 // HTTPS origin). That could not be verified without a browser here, so the
 // production cookie is left as strict as it is.
-export const APP_SESSION_COOKIE = "__Host-postava_presence";
+export const APP_SESSION_COOKIE = "__Host-postora_presence";
 // "Recordarme": persistent cookie, and the signed marker lasts as long.
 export const PRESENCE_LIFETIME_SECONDS = 30 * 24 * 60 * 60;
 // Without "Recordarme" the cookie has no Max-Age (it belongs to the browser

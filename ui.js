@@ -62,8 +62,8 @@ export function createUi(el, { doc = globalThis.document } = {}) {
 
     const phaseName = timer.phase === "focus" ? "Enfoque" : "Descanso";
     doc.title = timer.running
-      ? `${mm}:${ss} · ${phaseName} · Postava`
-      : "Postava · Pomodoro con postura";
+      ? `${mm}:${ss} · ${phaseName} · Postora`
+      : "Postora · Pomodoro con postura";
   }
 
   function syncChips() {

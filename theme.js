@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   Postava · selector de tema
+   Postora · selector de tema
    Solo presentación: no toca nada de la lógica de postura ni del temporizador.
    Guarda la preferencia en su propia clave para no interferir con los ajustes.
 
@@ -8,7 +8,7 @@
    del sistema.
    ───────────────────────────────────────────────────────────────────────── */
 
-const KEY = "postava.theme";
+const KEY = "postora.theme";
 const PREFS = ["light", "auto", "dark"];
 
 const root = document.documentElement;

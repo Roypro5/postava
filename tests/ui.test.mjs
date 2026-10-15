@@ -223,16 +223,16 @@ test("renderTimer: cronómetro mm:ss, offset del aro y título según fase y eje
   ui.renderTimer({ remaining: 25 * 60000, total: 25 * 60000, phase: "focus", running: false });
   assert.equal(el.time.textContent, "25:00");
   assert.equal(el.ring.style.strokeDashoffset, "0");
-  assert.equal(doc.title, "Postava · Pomodoro con postura");
+  assert.equal(doc.title, "Postora · Pomodoro con postura");
 
   ui.renderTimer({ remaining: 12.5 * 60000, total: 25 * 60000, phase: "focus", running: true });
   assert.equal(el.time.textContent, "12:30");
   assert.equal(el.ring.style.strokeDashoffset, String(753.98 * 0.5));
-  assert.equal(doc.title, "12:30 · Enfoque · Postava");
+  assert.equal(doc.title, "12:30 · Enfoque · Postora");
 
   ui.renderTimer({ remaining: 4001, total: 5 * 60000, phase: "break", running: true });
   assert.equal(el.time.textContent, "00:05"); // redondea hacia arriba
-  assert.equal(doc.title, "00:05 · Descanso · Postava");
+  assert.equal(doc.title, "00:05 · Descanso · Postora");
 });
 
 test("renderTimer con total 0 no divide por cero (progreso 0)", () => {

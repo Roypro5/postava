@@ -1,5 +1,5 @@
 /**
- * Clerk webhook handler for Postava (task T3.2 / A13).
+ * Clerk webhook handler for Postora (task T3.2 / A13).
  *
  * Listens for machine-to-machine webhook events from Clerk via Svix.
  *

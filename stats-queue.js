@@ -4,14 +4,14 @@ const SAVING_MESSAGE = "Guardando estadísticas…";
 export const DAILY_LIMIT_MESSAGE = "Se alcanzó el límite diario de sesiones guardadas; esta sesión no se guardó.";
 
 export function accountScopedQueueKey(accountId) {
-  return `postava.stats.pending.v2:${accountId}`;
+  return `postora.stats.pending.v2:${accountId}`;
 }
 
 // Marca de borrado: stats.js escribe aquí Date.now() ANTES del DELETE al
 // servidor. Toda sesión en cola con queuedAt <= marca es anterior al borrado y
 // se descarta (en cualquier pestaña); lo completado después se guarda normal.
 export function accountClearedKey(accountId) {
-  return `postava.stats.cleared:${accountId}`;
+  return `postora.stats.cleared:${accountId}`;
 }
 
 // Cola de envío de estadísticas por cuenta. Sin DOM ni globals: todas las

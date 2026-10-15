@@ -164,7 +164,7 @@ async function assertPrivateRoutesFailClosed(port, extraHeaders = {}, { unavaila
 
 const FORGED_CREDENTIALS = {
   authorization: "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyX2ZvcmdlZCJ9.firma",
-  cookie: "__session=eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyX2ZvcmdlZCJ9.firma; __client_uat=1700000000; __Host-postava_presence=cargautil.firma",
+  cookie: "__session=eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyX2ZvcmdlZCJ9.firma; __client_uat=1700000000; __Host-postora_presence=cargautil.firma",
 };
 
 test("server.mjs no monta clerkMiddleware sin protección ni de forma global: solo clerkAuthentication(), ruta a ruta", async () => {

@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   Postava · Pomodoro con corrección de postura en tiempo real
+   Postora · Pomodoro con corrección de postura en tiempo real
    Todo se ejecuta en el cliente: el vídeo nunca sale del dispositivo.
    Motor de visión: MediaPipe Tasks Vision (PoseLandmarker).
    ───────────────────────────────────────────────────────────────────────── */
@@ -630,9 +630,9 @@ monitor.initEngine();
 
 /* Gancho de depuración: abre la página con ?debug=1 para simular posturas
    desde la consola sin necesidad de cámara. Útil para ajustar umbrales.
-   Ej.:  postavaDebug.setBaseline(postavaDebug.state.posture.smoothed)      */
+   Ej.:  postoraDebug.setBaseline(postoraDebug.state.posture.smoothed)      */
 if (new URLSearchParams(location.search).has("debug")) {
-  window.postavaDebug = {
+  window.postoraDebug = {
     state: { posture, timer },
     setBaseline: (b) => {
       posture.baseline = { ...b };

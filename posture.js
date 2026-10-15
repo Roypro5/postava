@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   Postava · lógica pura de postura
+   Postora · lógica pura de postura
    Sin DOM ni estado global: recibe landmarks y devuelve métricas/problemas.
    Así se puede razonar (y testear) sin cámara.
    ───────────────────────────────────────────────────────────────────────── */

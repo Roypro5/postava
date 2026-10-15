@@ -11,7 +11,7 @@ function fakeStorage(initial = {}) {
 }
 
 test("la clave de almacenamiento no cambia", () => {
-  assert.equal(STORE_KEY, "postava.v1");
+  assert.equal(STORE_KEY, "postora.v1");
 });
 
 test("roundtrip de ajustes", () => {
@@ -19,7 +19,7 @@ test("roundtrip de ajustes", () => {
   const data = { focus: 25, brk: 5, sound: true, baseline: { neck: 0.3 } };
   writeSettings(data, s);
   assert.deepEqual(readSettings(s), data);
-  assert.equal(s.getItem("postava.v1"), JSON.stringify(data));
+  assert.equal(s.getItem("postora.v1"), JSON.stringify(data));
 });
 
 test("sin datos guardados devuelve null", () => {
@@ -27,7 +27,7 @@ test("sin datos guardados devuelve null", () => {
 });
 
 test("JSON corrupto devuelve null sin lanzar", () => {
-  assert.equal(readSettings(fakeStorage({ "postava.v1": "{no-json" })), null);
+  assert.equal(readSettings(fakeStorage({ "postora.v1": "{no-json" })), null);
 });
 
 test("storage bloqueado: no lanza al leer ni escribir", () => {
@@ -135,6 +135,6 @@ test("baseline inválido o incompleto es null; válido se copia solo con sus cla
 
 test("JSON corrupto o sin almacenamiento + sanitize da ajustes por defecto", () => {
   const defaults = sanitizeSettings({});
-  assert.deepEqual(sanitizeSettings(readSettings(fakeStorage({ "postava.v1": "{no" }))), defaults);
+  assert.deepEqual(sanitizeSettings(readSettings(fakeStorage({ "postora.v1": "{no" }))), defaults);
   assert.deepEqual(sanitizeSettings(readSettings(fakeStorage())), defaults);
 });

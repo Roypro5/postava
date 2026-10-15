@@ -62,12 +62,12 @@ function noStore(_req, res, next) {
 // realClerkSession() answers "no session" for it, so every private route fails
 // closed while public routes keep working. What that closed door looks like is
 // decided in sendSessionRequired: 503, not 401.
-const CLERK_UNAVAILABLE = Symbol("postava.clerkUnavailable");
+const CLERK_UNAVAILABLE = Symbol("postora.clerkUnavailable");
 
 // Set by clerkAuthentication() once Clerk has authenticated the request and put
 // its auth object on it. It is what tells a request Clerk looked at from one it
 // never saw (a public route, or a private route that forgot to mount it).
-const CLERK_AUTHENTICATED = Symbol("postava.clerkAuthenticated");
+const CLERK_AUTHENTICATED = Symbol("postora.clerkAuthenticated");
 
 // The only place a session is read (the only getAuth outside the middleware's
 // own check). It fails closed: a request Clerk did not authenticate, for any
@@ -705,7 +705,7 @@ if (isMain) {
   } else {
     await bundleFrontend();
     const server = createApp().listen(port, () => {
-      console.log(`Postava listening on port ${port}`);
+      console.log(`Postora listening on port ${port}`);
     });
     createGracefulShutdown({
       server,

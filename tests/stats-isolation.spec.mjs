@@ -94,7 +94,7 @@ test("a failed focus upload remains with its original account after switching", 
   await expect(page.locator("#timerHint")).toHaveText("en marcha");
   await page.clock.fastForward(61_000);
   await expect(page.locator(".stats-save-retry")).toBeVisible();
-  const pendingKey = "postava.stats.pending.v2:user-test-a";
+  const pendingKey = "postora.stats.pending.v2:user-test-a";
   expect(JSON.parse(await page.evaluate((key) => localStorage.getItem(key), pendingKey))).toHaveLength(1);
   const sentBeforeSwitch = posts.length;
 
