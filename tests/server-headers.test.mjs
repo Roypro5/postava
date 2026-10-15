@@ -160,20 +160,30 @@ for (const isProduction of [true, false]) {
 /** Coincidencia de ruta de CSP: con "/" final es prefijo, si no, exacta; el origen siempre debe coincidir. */
 function cspAllowsUrl(sources, url) {
   const target = new URL(url);
+  const targetPort = target.port || (target.protocol === "https:" ? "443" : "80");
   return sources.some((source) => {
     if (!source.startsWith("https://")) return false;
+    const hasWildcardPort = /:\*(?:\/.*)?$/.test(source);
     let src;
     try {
-      src = new URL(source.replace(/:\*$/, ""));
+      src = new URL(source.replace(/:\*(?=\/|$)/, ""));
     } catch {
       return false;
     }
+    if (src.protocol !== target.protocol) return false;
+
     if (src.hostname.startsWith("*.")) {
       const suffix = src.hostname.slice(1);
       if (!target.hostname.endsWith(suffix)) return false;
-    } else if (src.origin !== target.origin) {
+    } else if (src.hostname !== target.hostname) {
       return false;
     }
+
+    if (!hasWildcardPort) {
+      const srcPort = src.port || (src.protocol === "https:" ? "443" : "80");
+      if (srcPort !== targetPort) return false;
+    }
+
     if (src.pathname === "/" && !source.endsWith("/")) return true; // fuente de solo origen
     return src.pathname.endsWith("/") ? target.pathname.startsWith(src.pathname) : target.pathname === src.pathname;
   });
@@ -229,12 +239,20 @@ test("la CSP permite Cloudflare Turnstile y Clerk bot-protection (bootstrap.js y
       "bootstrap.js de Clerk debe estar permitido por script-src",
     );
     assert.ok(
+      cspAllowsUrl(scriptSrc, "https://cdn.protect.clerk.com//bootstrap.js"),
+      "//bootstrap.js (con doble barra de Clerk) debe estar permitido por script-src",
+    );
+    assert.ok(
       cspAllowsUrl(scriptSrc, "https://1-test-l.client.protect.clerk.com/instancia/loader.js"),
       "loader.js en subdominio cliente de Clerk debe estar permitido por script-src",
     );
     assert.ok(
       cspAllowsUrl(connectSrc, "https://1-test-p.client.protect.clerk.com/instancia/probe"),
       "probe en subdominio cliente de Clerk debe estar permitido por connect-src",
+    );
+    assert.ok(
+      cspAllowsUrl(connectSrc, "https://1-test-p.client.protect.clerk.com:8443/instancia/probe"),
+      "probe en puerto 8443 en subdominio cliente de Clerk debe estar permitido por connect-src",
     );
   }
 });
