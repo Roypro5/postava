@@ -178,6 +178,28 @@ test("cada import() remoto de app.js cae en el script-src que se aplica en produ
   }
 });
 
+test("la CSP permite Cloudflare Turnstile y Clerk bot-protection (bootstrap.js)", () => {
+  for (const isProduction of [true, false]) {
+    const csp = buildContentSecurityPolicy({ isProduction });
+    const scriptSrc = directive(csp, "script-src");
+    const connectSrc = directive(csp, "connect-src");
+    const frameSrc = directive(csp, "frame-src");
+
+    assert.ok(scriptSrc.includes("https://challenges.cloudflare.com"), "Turnstile en script-src");
+    assert.ok(frameSrc.includes("https://challenges.cloudflare.com"), "Turnstile en frame-src");
+    assert.ok(scriptSrc.includes("https://cdn.protect.clerk.com"), "Clerk bot-protection en script-src");
+    assert.ok(connectSrc.includes("https://cdn.protect.clerk.com"), "Clerk bot-protection en connect-src");
+    assert.ok(
+      cspAllowsUrl(scriptSrc, "https://cdn.protect.clerk.com/bootstrap.js"),
+      "bootstrap.js de Clerk debe estar permitido por script-src",
+    );
+    assert.ok(
+      cspAllowsUrl(scriptSrc, "https://cdn.protect.clerk.com//bootstrap.js"),
+      "//bootstrap.js (con doble barra de Clerk) debe estar permitido por script-src",
+    );
+  }
+});
+
 const PAGES = ["index.html", "login.html", "stats.html"];
 
 for (const page of PAGES) {
@@ -298,7 +320,12 @@ test("buildContentSecurityPolicy: el origen de Clerk va solo a connect-src, y se
       assert.ok(!directive(csp, name).includes(origin), `${name} no debe llevar el origen`);
     }
     // El resto de connect-src se conserva.
-    for (const kept of ["'self'", "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/", "https://storage.googleapis.com/mediapipe-models/"]) {
+    for (const kept of [
+      "'self'",
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/",
+      "https://storage.googleapis.com/mediapipe-models/",
+      "https://cdn.protect.clerk.com",
+    ]) {
       assert.ok(directive(csp, "connect-src").includes(kept), kept);
     }
     assert.ok(!buildContentSecurityPolicy({ isProduction }).includes(origin));

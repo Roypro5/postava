@@ -34,6 +34,10 @@ const MEDIAPIPE_MODEL_PREFIX = "https://storage.googleapis.com/mediapipe-models/
 // cloudflare.com/turnstile/v0/api.js") and Turnstile renders its widget in an
 // iframe from the same host.
 const CLERK_TURNSTILE_HOST = "https://challenges.cloudflare.com";
+// clerk-js also dynamically injects a Clerk bot-protection script
+// (e.g. "https://cdn.protect.clerk.com/.../bootstrap.js") to verify browser integrity.
+// It is allow-listed in script-src for execution and connect-src for integrity telemetry.
+const CLERK_BOT_PROTECTION_HOST = "https://cdn.protect.clerk.com";
 // clerk-js telemetry (clerk-telemetry.com) is disabled in auth-adapter.js
 // (`telemetry: false`), so that host is intentionally NOT in connect-src.
 
@@ -110,9 +114,15 @@ function buildDirectives({ includeClerkDevHosts, clerkFrontendOrigin }) {
     MEDIAPIPE_PACKAGE_URL,
     MEDIAPIPE_CDN_PREFIX,
     CLERK_TURNSTILE_HOST,
+    CLERK_BOT_PROTECTION_HOST,
     "'wasm-unsafe-eval'",
   ];
-  const connectSrc = ["'self'", MEDIAPIPE_CDN_PREFIX, MEDIAPIPE_MODEL_PREFIX];
+  const connectSrc = [
+    "'self'",
+    MEDIAPIPE_CDN_PREFIX,
+    MEDIAPIPE_MODEL_PREFIX,
+    CLERK_BOT_PROTECTION_HOST,
+  ];
   const frameSrc = [CLERK_TURNSTILE_HOST];
 
   if (includeClerkDevHosts) {
