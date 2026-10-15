@@ -101,7 +101,7 @@ Lo esperado es 719/719 en unitarios y 8/9 en UI (el fallo es A1). Si sale otra c
 
 ### ⛔ Puerta F0
 
-- El usuario confirma que el [PR #2](https://github.com/Roypro5/postava/pull/2) está
+- El usuario confirma que el [PR #2](https://github.com/Roypro5/postora/pull/2) está
   mergeado (A2) y que movió el `.docx` fuera del repo (A3).
 - Después: `git checkout main && git pull`.
 
@@ -594,8 +594,8 @@ servicio antiguo en Render (T6.2, paso 1) **antes** de mergear.
 | T5.6 | Verificación del despliegue | ☐ | | |
 | T5.7 | Dominio propio y Clerk de producción | ☐ | | ⛔ Diferida |
 | F5 | Puerta Fase 5 | ☐ | | ⛔ |
-| T6.1 | Renombrar en el repositorio | ☑ | `9feaf0f` | Textos visibles, identificadores (storage, cookie, mock, debug), configuración, docs y subagente dev-postora |
-| T6.2 | Renombrar el repositorio en GitHub | ☐ | | ⛔ La hace el usuario |
+| T6.1 | Renombrar en el repositorio | ☑ | `35cdf6b` | Textos visibles, identificadores (storage, cookie, mock, debug), configuración, docs y subagente dev-postora |
+| T6.2 | Renombrar el repositorio en GitHub | ☑ |  | ⛔ Repositorio renombrado a Roypro5/postora, URLs actualizadas |
 | T6.3 | Nuevo servicio en Render | ☐ | | ⛔ La hace el usuario |
 | T6.4 | Nombres cosméticos | ☐ | | Opcional |
 | F6 | Puerta Fase 6 | ☐ | | ⛔ |
