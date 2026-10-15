@@ -436,7 +436,7 @@ configuración y la documentación).
 **Subagentes:** `test-automator` y `security-auditor`.
 
 **Orden:** se hace **después de la [Fase 6](#fase-6--renombrar-a-postora)**, sobre
-`https://postora.onrender.com`.
+`https://postora-sqbv.onrender.com`.
 
 1. `GET /healthz` → 200.
 2. Pomodoro y cámara sin cuenta (HTTPS, permiso de cámara).
@@ -446,10 +446,10 @@ configuración y la documentación).
    - «Borrar todas mis estadísticas» lo borra;
    - un invitado es redirigido.
 5. Cero violaciones de CSP en la consola; cabeceras HSTS y CSP presentes.
-6. `npm run test:ui` con `TEST_BASE_URL=https://<app>.onrender.com`. Con URL remota los specs
+6. `npm run test:ui` con `TEST_BASE_URL=https://postora-sqbv.onrender.com`. Con URL remota los specs
    usan el Clerk real, sin crear cuentas ni enviar correos (regla 7).
 7. Webhook: desde el panel de Clerk, *Send test event* de `user.deleted` a
-   `https://<app>.onrender.com/api/webhooks/clerk` → 200; con una firma inválida → 400.
+   `https://postora-sqbv.onrender.com/api/webhooks/clerk` → 200; con una firma inválida → 400.
 
 **Hecho cuando:** todos los puntos se cumplen y los resultados quedan anotados en la tabla de
 seguimiento.
@@ -547,7 +547,7 @@ programador de publicaciones para redes sociales).
    - las de Clerk de desarrollo: `CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY`;
    - `CLERK_WEBHOOK_SIGNING_SECRET` puede quedar vacía hasta T5.6.
 3. Si la sincronización no lanza el despliegue: *Manual Deploy › Deploy latest commit*.
-4. Comprobar que `https://postora.onrender.com/healthz` responde 200.
+4. Comprobar que `https://postora-sqbv.onrender.com/healthz` responde 200 (Render asignó el sufijo `-sqbv` porque el nombre `postora` ya estaba en uso en la plataforma).
 
 ### T6.4 · Nombres cosméticos (opcional)
 
@@ -595,7 +595,7 @@ servicio antiguo en Render (T6.2, paso 1) **antes** de mergear.
 | T5.7 | Dominio propio y Clerk de producción | ☐ | | ⛔ Diferida |
 | F5 | Puerta Fase 5 | ☐ | | ⛔ |
 | T6.1 | Renombrar en el repositorio | ☑ | `35cdf6b` | Textos visibles, identificadores (storage, cookie, mock, debug), configuración, docs y subagente dev-postora |
-| T6.2 | Renombrar el repositorio en GitHub | ☑ |  | ⛔ Repositorio renombrado a Roypro5/postora, URLs actualizadas |
-| T6.3 | Nuevo servicio en Render | ☐ | | ⛔ La hace el usuario |
+| T6.2 | Renombrar el repositorio en GitHub | ☑ | `80b0fcf` | ⛔ Repositorio renombrado a Roypro5/postora, URLs actualizadas |
+| T6.3 | Nuevo servicio en Render | ☑ | — | ⛔ Servicio postora-sqbv.onrender.com creado y desplegado |
 | T6.4 | Nombres cosméticos | ☐ | | Opcional |
 | F6 | Puerta Fase 6 | ☐ | | ⛔ |

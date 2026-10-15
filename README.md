@@ -193,7 +193,7 @@ Postora está preparada para desplegarse a coste 0 € con la siguiente arquitec
 
 | Componente | Servicio | Plan y región | Notas operativas |
 | --- | --- | --- | --- |
-| **Web Service** | [Render](https://render.com) | Free, región Ohio (`us-east-2`) | HTTPS en `https://<tu-app>.onrender.com`. En el plan gratuito se suspende tras 15 minutos sin peticiones y tarda ~50-60 segundos en despertar (*cold start*) al recibir tráfico nuevo. |
+| **Web Service** | [Render](https://render.com) | Free, región Ohio (`us-east-2`) | HTTPS en `https://postora-sqbv.onrender.com`. En el plan gratuito se suspende tras 15 minutos sin peticiones y tarda ~50-60 segundos en despertar (*cold start*) al recibir tráfico nuevo. |
 | **Base de datos** | [Neon](https://neon.tech) | Free, AWS Ohio (`us-east-2`) | PostgreSQL 16 con dos ramas: `production` (para el despliegue en Render) y `dev` (desarrollo y pruebas de integración). Exige `PGSSLMODE=require`. |
 | **Autenticación** | [Clerk](https://clerk.com) | Instancia de **desarrollo** | Claves `pk_test` y `sk_test`. Funciona sin requerir dominio propio configurando `VITE_CLERK_PROXY_URL=""` (clerk-js conecta directo con el host de Clerk, permitido por la CSP). |
 
@@ -214,7 +214,7 @@ Ningún secreto se almacena en el repositorio; en `render.yaml` van con `sync: f
 | `SESSION_SECRET` | Generada automáticamente por Render (`generateValue: true` en `render.yaml`) con suficiente entropía y mantenida estable entre despliegues; no requiere configuración manual ni `openssl` |
 | `CLERK_PUBLISHABLE_KEY` | Clave pública de la instancia de desarrollo de Clerk (`pk_test_...`) |
 | `CLERK_SECRET_KEY` | Clave secreta de la instancia de desarrollo de Clerk (`sk_test_...`) |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | Secreto de firma Svix (`whsec_...`) del webhook configurado en Clerk apuntando a `https://<tu-app>.onrender.com/api/webhooks/clerk` suscrito a `user.deleted`. Se puede dejar vacía inicialmente al crear el servicio: el webhook responderá `503 WEBHOOK_UNCONFIGURED` hasta configurar el endpoint en Clerk con la URL definitiva de Render y pegar el secreto |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | Secreto de firma Svix (`whsec_...`) del webhook configurado en Clerk apuntando a `https://postora-sqbv.onrender.com/api/webhooks/clerk` suscrito a `user.deleted`. Se puede dejar vacía inicialmente al crear el servicio: el webhook responderá `503 WEBHOOK_UNCONFIGURED` hasta configurar el endpoint en Clerk con la URL definitiva de Render y pegar el secreto |
 | `VITE_CLERK_PROXY_URL` | **No definirla** (el servidor ya trata «no definida» igual que vacía, permitiendo que clerk-js hable directo con el host de Clerk) |
 | `PGHOST` | Host de la rama `production` de Neon |
 | `PGUSER` | Usuario de la rama `production` de Neon |
