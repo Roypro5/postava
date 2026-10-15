@@ -38,6 +38,10 @@ const CLERK_TURNSTILE_HOST = "https://challenges.cloudflare.com";
 // (e.g. "https://cdn.protect.clerk.com/.../bootstrap.js") to verify browser integrity.
 // It is allow-listed in script-src for execution and connect-src for integrity telemetry.
 const CLERK_BOT_PROTECTION_HOST = "https://cdn.protect.clerk.com";
+// The bot-protection runtime loads dynamic per-client scripts (e.g. loader.js)
+// and probes multiple ports (e.g. 8443, 18443, 2082, 992) across customer
+// subdomains to verify browser integrity.
+const CLERK_BOT_PROTECTION_CLIENT_HOSTS = "https://*.client.protect.clerk.com:*";
 // clerk-js telemetry (clerk-telemetry.com) is disabled in auth-adapter.js
 // (`telemetry: false`), so that host is intentionally NOT in connect-src.
 
@@ -115,6 +119,7 @@ function buildDirectives({ includeClerkDevHosts, clerkFrontendOrigin }) {
     MEDIAPIPE_CDN_PREFIX,
     CLERK_TURNSTILE_HOST,
     CLERK_BOT_PROTECTION_HOST,
+    CLERK_BOT_PROTECTION_CLIENT_HOSTS,
     "'wasm-unsafe-eval'",
   ];
   const connectSrc = [
@@ -122,6 +127,7 @@ function buildDirectives({ includeClerkDevHosts, clerkFrontendOrigin }) {
     MEDIAPIPE_CDN_PREFIX,
     MEDIAPIPE_MODEL_PREFIX,
     CLERK_BOT_PROTECTION_HOST,
+    CLERK_BOT_PROTECTION_CLIENT_HOSTS,
   ];
   const frameSrc = [CLERK_TURNSTILE_HOST];
 
