@@ -122,6 +122,8 @@ test("producción: la CSP enforced no bloquea MediaPipe (módulo, WASM y modelo)
   // Es producción de verdad: CSP enforced, no Report-Only.
   const cspHeader = response.headers()["content-security-policy"];
   expect(cspHeader).toContain("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+  expect(cspHeader).toContain("https://cdn.protect.clerk.com");
+  expect(cspHeader).toContain("https://challenges.cloudflare.com");
   expect(cspHeader).not.toContain("fonts.googleapis.com");
   expect(cspHeader).not.toContain("fonts.gstatic.com");
   expect(cspHeader).toContain("style-src 'self'");
