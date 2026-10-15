@@ -5,11 +5,11 @@ export function phaseEndNotification(nextPhase) {
     nextPhase === "break"
       ? "Fase de enfoque terminada. Toca descansar."
       : "Descanso terminado. Toca volver al enfoque.";
-  return { title: "Postava", body, tag: "postava-phase" };
+  return { title: "Postora", body, tag: "postora-phase" };
 }
 
 export function postureNotification(issueText) {
-  return { title: "Postava", body: issueText, tag: "postava-posture" };
+  return { title: "Postora", body: issueText, tag: "postora-posture" };
 }
 
 export function canNotify({ supported, permission, enabled } = {}) {

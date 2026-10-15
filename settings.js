@@ -3,7 +3,7 @@
    `storage` es opcional (por defecto localStorage) y se resuelve dentro del try: en
    algunos navegadores el mero acceso a localStorage lanza. */
 
-export const STORE_KEY = "postava.v1";
+export const STORE_KEY = "postora.v1";
 
 export function writeSettings(data, storage) {
   try {

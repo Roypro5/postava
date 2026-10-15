@@ -8,7 +8,7 @@ Para las sesiones siguientes, usa el [prompt corto de continuación](#prompt-de-
 ---
 
 ```text
-Vas a retomar el desarrollo de Postava (Pomodoro con corrección de postura en el
+Vas a retomar el desarrollo de Postora (Pomodoro con corrección de postura en el
 navegador). Trabaja en español.
 
 CONTEXTO, léelo entero antes de hacer nada:
@@ -52,7 +52,7 @@ resultado de la línea base de tests.
 Para cada sesión nueva, después de darle el OK de una puerta:
 
 ```text
-Retoma Postava. Lee AGENTS.md y la tabla «Seguimiento» de docs/antigravity/PLAN.md, y
+Retoma Postora. Lee AGENTS.md y la tabla «Seguimiento» de docs/antigravity/PLAN.md, y
 continúa con la siguiente tarea pendiente. Sigue las mismas reglas: un commit por tarea,
 revisor-proyectos sobre cada diff y parar en cada ⛔.
 Te doy OK para: <puerta o tarea aprobada, p. ej. "push de la rama de la fase 1 y abrir PR">.

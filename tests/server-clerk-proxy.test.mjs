@@ -166,10 +166,10 @@ test("stripAppCookies quita solo las cookies propias y respeta el resto", () => 
   // El nombre real de la cookie de presencia debe caer siempre en el filtro.
   assert.equal(stripAppCookies(`${APP_SESSION_COOKIE}=x`), "");
   assert.equal(
-    stripAppCookies("a=1; postava.v1=x; __Secure-postava_y=2;__client=3;  ;b"),
+    stripAppCookies("a=1; postora.v1=x; __Secure-postora_y=2;__client=3;  ;b"),
     "a=1; __client=3; b",
   );
-  assert.equal(stripAppCookies("theme_postava=1; __client_uat_Ab12=2"), "theme_postava=1; __client_uat_Ab12=2");
+  assert.equal(stripAppCookies("theme_postora=1; __client_uat_Ab12=2"), "theme_postora=1; __client_uat_Ab12=2");
   assert.equal(stripAppCookies(undefined), "");
   assert.equal(stripAppCookies(""), "");
 });

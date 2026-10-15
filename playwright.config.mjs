@@ -7,7 +7,7 @@
 //  - Reutilizar un servidor local ya levantado: TEST_REUSE_SERVER=1 (por defecto NO se reutiliza).
 //
 // Decisiones de seguridad (cubiertas por tests/playwright-config.test.mjs):
-//  1. Mock de Clerk (POSTAVA_MOCK_CLERK=1, lo fija este archivo para tests/auth-ui.spec.mjs): solo con
+//  1. Mock de Clerk (POSTORA_MOCK_CLERK=1, lo fija este archivo para tests/auth-ui.spec.mjs): solo con
 //     servidor local Y sin CLERK_PUBLISHABLE_KEY NI CLERK_SECRET_KEY propias. Si el entorno define
 //     cualquiera de las dos, o se usa TEST_BASE_URL, no hay mock y los tests de auth-ui que
 //     abren login.html cargan el proveedor real (solo comprueban su inicialización y validaciones del
@@ -57,10 +57,10 @@ const startLocalServer = !process.env.TEST_BASE_URL;
 
 // Con las claves ficticias de abajo no hay proveedor real: los specs que dependen de la
 // inicialización de Clerk (auth-ui) mockean /api/auth/config y el bundle del adaptador
-// cuando POSTAVA_MOCK_CLERK=1. Con TEST_BASE_URL o cualquier clave de Clerk propia
+// cuando POSTORA_MOCK_CLERK=1. Con TEST_BASE_URL o cualquier clave de Clerk propia
 // (publicable o secreta) se usa el proveedor real y esos specs comprueban su inicialización.
 const hasOwnClerkKeys = Boolean(process.env.CLERK_PUBLISHABLE_KEY || process.env.CLERK_SECRET_KEY);
-process.env.POSTAVA_MOCK_CLERK = startLocalServer && !hasOwnClerkKeys ? "1" : "0";
+process.env.POSTORA_MOCK_CLERK = startLocalServer && !hasOwnClerkKeys ? "1" : "0";
 
 const browserArgs = ["--no-sandbox", ...(isLocalURL(baseURL) ? ["--no-proxy-server"] : [])];
 

@@ -1,4 +1,4 @@
-# Base de datos de Postava
+# Base de datos de Postora
 
 PostgreSQL con una sola tabla, `posture_stats_sessions` (resumen de cada bloque
 de enfoque completado por usuario autenticado).
@@ -27,7 +27,7 @@ porque las consultas reales (`getStats` y el límite diario) filtran y ordenan p
 
 ## Variables de conexión y el servidor
 
-El servidor de Postava (`server/stats-store.mjs`) utiliza `node-postgres` (`pg`),
+El servidor de Postora (`server/stats-store.mjs`) utiliza `node-postgres` (`pg`),
 el cual lee **exclusivamente** las variables de entorno estándar `PG*`:
 
 - `PGHOST`
@@ -103,7 +103,7 @@ psql -v ON_ERROR_STOP=1 -f db/purge-old.sql
 
 ## Usuario de Clerk eliminado
 
-Postava procesa automáticamente el webhook `user.deleted` de Clerk en
+Postora procesa automáticamente el webhook `user.deleted` de Clerk en
 `POST /api/webhooks/clerk` (verificado mediante firma criptográfica Svix con
 `CLERK_WEBHOOK_SIGNING_SECRET`), borrando todas las sesiones del usuario de forma
 idempotente. En el panel de Clerk (Webhooks) se crea un endpoint

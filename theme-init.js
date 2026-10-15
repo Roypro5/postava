@@ -6,7 +6,7 @@
    el cambio del sistema. */
 (() => {
   let pref = "auto";
-  try { pref = localStorage.getItem("postava.theme") || "auto"; } catch {}
+  try { pref = localStorage.getItem("postora.theme") || "auto"; } catch {}
   const dark = pref === "dark" ||
     (pref === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";

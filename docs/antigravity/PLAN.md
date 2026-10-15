@@ -64,7 +64,7 @@ mainAgent: false
 | `architect-reviewer` | pro | lectura + `run_command` | límites entre módulos y diseño |
 | `security-auditor` | pro | solo lectura | auditoría, nunca edita |
 | `revisor-proyectos` | pro | lectura + `run_command` | revisa el diff de cada tarea, nunca edita |
-| `dev-postava` | flash | lectura + escritura + `run_command` | implementación general |
+| `dev-postora` | flash | lectura + escritura + `run_command` | implementación general |
 | `frontend-developer` | flash | lectura + escritura + `run_command` | HTML/CSS/JS del cliente |
 | `test-automator` | flash | lectura + escritura + `run_command` | `node:test` y Playwright |
 | `refactoring-specialist` | flash | lectura + escritura + `run_command` | refactor sin cambiar comportamiento |
@@ -456,7 +456,7 @@ seguimiento.
 
 ### ⛔ T5.7 · (Diferida) Dominio propio y Clerk de producción
 
-Solo cuando se quiera abrir Postava al público.
+Solo cuando se quiera abrir Postora al público.
 
 1. Comprar un dominio (~10 €/año) y apuntarlo a Render.
 2. Crear la instancia de producción de Clerk con sus registros DNS.
@@ -594,7 +594,7 @@ servicio antiguo en Render (T6.2, paso 1) **antes** de mergear.
 | T5.6 | Verificación del despliegue | ☐ | | |
 | T5.7 | Dominio propio y Clerk de producción | ☐ | | ⛔ Diferida |
 | F5 | Puerta Fase 5 | ☐ | | ⛔ |
-| T6.1 | Renombrar en el repositorio | ☐ | | |
+| T6.1 | Renombrar en el repositorio | ☑ | `9feaf0f` | Textos visibles, identificadores (storage, cookie, mock, debug), configuración, docs y subagente dev-postora |
 | T6.2 | Renombrar el repositorio en GitHub | ☐ | | ⛔ La hace el usuario |
 | T6.3 | Nuevo servicio en Render | ☐ | | ⛔ La hace el usuario |
 | T6.4 | Nombres cosméticos | ☐ | | Opcional |

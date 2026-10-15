@@ -24,7 +24,7 @@ const registerHooks = nodeModule.registerHooks;
 const APP_URL = new URL("../app.js", import.meta.url);
 const ROOT_URL = new URL("../", import.meta.url).href;
 const CDN_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
-const PENDING_KEY_PREFIX = "postava.stats.pending.v2:";
+const PENDING_KEY_PREFIX = "postora.stats.pending.v2:";
 const FOCUS_MS = 25 * 60_000;
 
 /* ── Utilidades de espera ─────────────────────────────────────────────── */
@@ -364,25 +364,25 @@ function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, st
       });
     },
   };
-  setGlobal("__postavaWiring", wiring);
+  setGlobal("__postoraWiring", wiring);
 
   const stubs = {
     [`stub:mediapipe-${runId}`]: `
-      const gate = globalThis.__postavaWiring.gate;
+      const gate = globalThis.__postoraWiring.gate;
       if (gate) await gate;
       export const FilesetResolver = {
-        forVisionTasks: async (base) => { globalThis.__postavaWiring.mp.calls.push(["wasm", base]); return {}; },
+        forVisionTasks: async (base) => { globalThis.__postoraWiring.mp.calls.push(["wasm", base]); return {}; },
       };
       export const PoseLandmarker = {
         createFromOptions: async (vision, options) => {
-          const mp = globalThis.__postavaWiring.mp;
+          const mp = globalThis.__postoraWiring.mp;
           mp.calls.push(["create", options.baseOptions.delegate, JSON.stringify(options)]);
           return { detectForVideo: () => { mp.detected += 1; return { landmarks: mp.frame ? [mp.frame] : [] }; } };
         },
       };`,
     [`stub:auth-${runId}`]: `
       export async function loadAuth() {
-        return globalThis.__postavaWiring.loadAuth();
+        return globalThis.__postoraWiring.loadAuth();
       }`,
   };
 
@@ -431,7 +431,7 @@ function createBrowser({ user = null, cdn = "up", onFetch, restore, loadAuth, st
     unhandled,
     cdnRequests,
     document: fakeDocument,
-    get debug() { return globalThis.postavaDebug; },
+    get debug() { return globalThis.postoraDebug; },
 
     /* Elemento por id; falla con claridad si app.js nunca lo pidió. */
     el(id) {
@@ -632,7 +632,7 @@ test(
         assert.equal(el("phaseLabel").textContent, "Enfoque");
       });
 
-      await step("postavaDebug (?debug=1): mismas claves y state.posture accesible", () => {
+      await step("postoraDebug (?debug=1): mismas claves y state.posture accesible", () => {
         assert.deepEqual(Object.keys(app.debug), [
           "state", "setBaseline", "forceCamera", "evaluate", "draw", "startCalibration", "handleCalibration",
         ]);
@@ -650,7 +650,7 @@ test(
         assert.equal(el("focusMins").value, "50");
         assert.equal(el("timerDisplay").textContent, "50:00");
         assert.deepEqual(pressed(), ["50"]);
-        assert.equal(JSON.parse(app.store.get("postava.v1")).focus, 50, "el cambio se persiste");
+        assert.equal(JSON.parse(app.store.get("postora.v1")).focus, 50, "el cambio se persiste");
 
         await Promise.all(app.chips[0].emit("click")); // vuelta a 25 min
         assert.equal(el("timerDisplay").textContent, "25:00");
@@ -697,7 +697,7 @@ test(
         app.advance(5_000);
         app.tick();
         assert.equal(el("timerDisplay").textContent, "24:55");
-        assert.equal(app.document.title, "24:55 · Enfoque · Postava");
+        assert.equal(app.document.title, "24:55 · Enfoque · Postora");
         assert.equal(app.debug.state.timer.remaining, FOCUS_MS - 5_000);
         assert.equal(el("timerHint").textContent, "en marcha");
       });
@@ -731,7 +731,7 @@ test(
         assert.equal(el("btnCalibrate").disabled, false);
         assert.equal(el("hideVideoToggle").checked, true);
         assert.equal(el("stage").dataset.hideVideo, "true");
-        const saved = JSON.parse(app.store.get("postava.v1"));
+        const saved = JSON.parse(app.store.get("postora.v1"));
         assert.ok(saved.baseline && typeof saved.baseline.neck === "number");
         assert.equal(saved.hideVideo, true);
         assert.equal(el("postureBadge").textContent, "Postura correcta");
@@ -760,7 +760,7 @@ test(
         assert.equal(el("postureBadge").textContent, "Corrige la postura");
         assert.equal(app.audio.oscillators - oscillatorsBefore, 2, "dos tonos de aviso");
         assert.equal(app.notes.length, 1);
-        assert.equal(app.notes[0].options.tag, "postava-posture");
+        assert.equal(app.notes[0].options.tag, "postora-posture");
         assert.equal(app.notes[0].options.renotify, true);
         assert.equal(app.notes[0].options.body, el("alertReason").textContent);
         assert.equal(el("alertCount").textContent, "1");
@@ -788,7 +788,7 @@ test(
         assert.equal(el("postureMsg").textContent, "No detecto tu cabeza y hombros. Colócate frente a la cámara.");
       });
 
-      await step("postavaDebug: setBaseline, evaluate y draw funcionan sin cámara real", () => {
+      await step("postoraDebug: setBaseline, evaluate y draw funcionan sin cámara real", () => {
         const baseline = { neck: 0.75, width: 0.533, tilt: 0, side: 0, chin: 0.094, shoulderY: 0.85 };
         app.debug.setBaseline(baseline);
         assert.equal(app.debug.state.posture.baseline.neck, 0.75);
@@ -885,7 +885,7 @@ test(
         assert.equal(app.audio.oscillators - oscillatorsBefore, 3, "tres tonos de fin de fase");
         assert.equal(app.notes.length - notesBefore, 1);
         const note = app.notes.at(-1);
-        assert.equal(note.options.tag, "postava-phase");
+        assert.equal(note.options.tag, "postora-phase");
         assert.equal(note.options.body, "Fase de enfoque terminada. Toca descansar.");
         assert.equal(note.options.renotify, true);
         assert.deepEqual(pendingWrites(app), [], "sin cuenta no se encola nada");
@@ -1444,7 +1444,7 @@ test(
       assert.equal(app.debug.state.timer.running, true, "oculta: no se pausa");
       assert.equal(el("timerDisplay").textContent, "05:00", "la fase terminó estando oculta");
       assert.equal(el("phaseLabel").textContent, "Descanso");
-      assert.equal(app.notes.at(-1)?.options.tag, "postava-phase", "avisa en la pestaña oculta");
+      assert.equal(app.notes.at(-1)?.options.tag, "postora-phase", "avisa en la pestaña oculta");
 
       app.advance(5_000);
       app.setVisibility("visible");
@@ -1464,7 +1464,7 @@ test(
       app.setVisibility("visible");
       assert.equal(app.debug.state.timer.running, true, "sin falso suspend");
       assert.equal(el("timerDisplay").textContent, "14:00", "repintado en el propio visibilitychange");
-      assert.equal(app.document.title, "14:00 · Enfoque · Postava");
+      assert.equal(app.document.title, "14:00 · Enfoque · Postora");
       assert.notEqual(el("btnStart").textContent, "Reanudar");
     });
 
@@ -1558,7 +1558,7 @@ test(
     /* ── Baseline guardado sin validar ───────────────────────────────────── */
 
     await t.test("baseline guardado: solo se aplica con las 6 métricas numéricas y finitas", async (saved) => {
-      const seed = (baseline) => ({ "postava.v1": JSON.stringify({ focus: 25, baseline }) });
+      const seed = (baseline) => ({ "postora.v1": JSON.stringify({ focus: 25, baseline }) });
       const { shoulderY: _omitted, ...withoutShoulderY } = VALID_BASELINE;
       const invalid = {
         "objeto vacío": {},

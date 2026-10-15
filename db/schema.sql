@@ -1,4 +1,4 @@
--- Postava: esquema de referencia de la base de datos de estadisticas.
+-- Postora: esquema de referencia de la base de datos de estadisticas.
 --
 -- Conciliado en T3.1: establecido como esquema canonico inicial (sin base
 -- preexistente que conciliar). Si se aplica sobre una base existente, comparar

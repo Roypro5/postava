@@ -371,7 +371,7 @@ const forgedCredentials = {
   "sin credenciales": {},
   "Authorization: Bearer x": { authorization: "Bearer x" },
   "cookie __session falsa": { cookie: "__session=eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyX2ZvcmdlZCJ9.firma; __client_uat=1700000000" },
-  "cookie de presencia inventada": { cookie: "__Host-postava_presence=cargautil.firma" },
+  "cookie de presencia inventada": { cookie: "__Host-postora_presence=cargautil.firma" },
 };
 
 test("las rutas privadas de la API, pedidas con cabeceras de navegador y sin sesión, fallan cerradas", async () => {

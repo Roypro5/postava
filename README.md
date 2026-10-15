@@ -1,4 +1,4 @@
-# Postava
+# Postora
 
 Pomodoro con corrección de postura en tiempo real. Todo se ejecuta en el navegador:
 el vídeo **nunca** sale de tu equipo.
@@ -145,7 +145,7 @@ sale siempre de Clerk en el servidor, nunca del navegador.
   5 peticiones/minuto). El Pomodoro sigue funcionando igual.
 - **Retención:** la purga por antigüedad es manual (`psql -f db/purge-old.sql`
   borra las sesiones de más de 400 días). Para un usuario de Clerk eliminado,
-  Postava procesa automáticamente el webhook `user.deleted` en
+  Postora procesa automáticamente el webhook `user.deleted` en
   `POST /api/webhooks/clerk` (y `db/delete-user.sql` queda como respaldo manual).
 - **Esquema:** `db/schema.sql` y `db/migrations/0001_initial.sql` constituyen el
   esquema canónico inicial y se aplican a mano (mediante `psql` o desde el editor
@@ -189,7 +189,7 @@ Ninguna de estas variables debe imprimirse ni commitearse con su valor real.
 
 ## Despliegue en producción (Render + Neon)
 
-Postava está preparada para desplegarse a coste 0 € con la siguiente arquitectura:
+Postora está preparada para desplegarse a coste 0 € con la siguiente arquitectura:
 
 | Componente | Servicio | Plan y región | Notas operativas |
 | --- | --- | --- | --- |
@@ -315,19 +315,19 @@ Atajos: <kbd>Espacio</kbd> iniciar/pausar · <kbd>C</kbd> calibrar.
 > bloque de enfoque en curso (fase, tiempo restante y minutos acumulados) sin
 > guardarlo en las estadísticas. Solo se guardan en `localStorage` los ajustes
 > y la calibración (`saveSettings()` en `app.js`, que escribe con `settings.js`
-> en la clave `postava.v1`), la preferencia de tema (`postava.theme`) y, con
+> en la clave `postora.v1`), la preferencia de tema (`postora.theme`) y, con
 > cuenta, los bloques ya completados cuyo envío falló
-> (`postava.stats.pending.v2:<cuenta>`).
+> (`postora.stats.pending.v2:<cuenta>`).
 
 ## Depuración
 
-Abre `?debug=1` para exponer `window.postavaDebug` y simular posturas sin cámara,
+Abre `?debug=1` para exponer `window.postoraDebug` y simular posturas sin cámara,
 útil para afinar umbrales:
 
 ```js
-postavaDebug.forceCamera(true);
-postavaDebug.setBaseline({ neck: .75, width: .533, tilt: 0, side: 0, chin: .094, shoulderY: .85 });
-postavaDebug.evaluate({ neck: .54, width: .533, tilt: 0, side: 0, chin: .094, shoulderY: .85 }, performance.now());
+postoraDebug.forceCamera(true);
+postoraDebug.setBaseline({ neck: .75, width: .533, tilt: 0, side: 0, chin: .094, shoulderY: .85 });
+postoraDebug.evaluate({ neck: .54, width: .533, tilt: 0, side: 0, chin: .094, shoulderY: .85 }, performance.now());
 ```
 
 ## Ficheros
@@ -354,12 +354,12 @@ muestra el diagrama de más abajo.
 | `overlay.js` | dibujo del lienzo (esqueleto, panel en vivo, modo mapa, paleta `COLORS`); recibe `ctx` y un objeto de estado, sin DOM ni estado global |
 | `sound.js` | tonos con WebAudio, sin ficheros de audio; no conoce DOM, temporizador ni ajustes |
 | `notifications.js` | textos y reglas de las notificaciones del sistema (lógica pura) y su efecto `showSystemNotification` con el entorno inyectable; no toca el DOM |
-| `settings.js` | lectura y escritura de ajustes en `localStorage` (`postava.v1`); solo datos, sin DOM ni temporizador |
+| `settings.js` | lectura y escritura de ajustes en `localStorage` (`postora.v1`); solo datos, sin DOM ni temporizador |
 | `stats-session.js` | reglas puras del bloque de enfoque completado: lo vincula a la cuenta al empezar, construye el payload agregado y clasifica los errores de envío (400/409 se descartan; el resto se reintenta) |
-| `stats-queue.js` | cola de envío de estadísticas por cuenta, con reintentos; es el único módulo de la página principal que envía datos al servidor de Postava (`POST /api/stats/sessions`), con `fetch`, almacenamiento y bundle de auth inyectados |
+| `stats-queue.js` | cola de envío de estadísticas por cuenta, con reintentos; es el único módulo de la página principal que envía datos al servidor de Postora (`POST /api/stats/sessions`), con `fetch`, almacenamiento y bundle de auth inyectados |
 | `stats-math.js` | cálculos puros del panel de estadísticas (fatiga por franja horaria, puntuación ponderada), sin DOM |
 | `theme-init.js` | aplica el tema guardado antes del primer pintado; se carga síncrono en el `<head>` de las tres páginas. Es externo a propósito: la CSP de producción no permite scripts en línea (no añadas ninguno) |
-| `theme.js` | selector de tema claro/automático/oscuro (`postava.theme`); solo presentación |
+| `theme.js` | selector de tema claro/automático/oscuro (`postora.theme`); solo presentación |
 | `account.js` | botón de acceso o cierre de sesión de la cabecera; un fallo del servicio de cuentas no afecta al temporizador |
 | `login.html` / `login.js` | pantallas de acceso, registro y recuperación (Clerk) |
 | `stats.html` / `stats.js` | pantalla de estadísticas privadas por cuenta |

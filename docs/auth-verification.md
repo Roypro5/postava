@@ -1,4 +1,4 @@
-# Verificación y arquitectura de autenticación en Postava
+# Verificación y arquitectura de autenticación en Postora
 
 Este documento consolida las decisiones clave de arquitectura, seguridad y pruebas de autenticación derivadas de la integración con Clerk y las lecciones aprendidas durante su verificación.
 
@@ -10,7 +10,7 @@ Este documento consolida las decisiones clave de arquitectura, seguridad y prueb
 El temporizador Pomodoro y la detección de postura en tiempo real mediante visión artificial se ejecutan enteramente en Vanilla JavaScript en el navegador y **no dependen de ninguna sesión autenticada ni de React**.
 
 ### Motivo
-- **Uso anónimo garantizado (Regla 2 de `AGENTS.md`):** La funcionalidad central de Postava (temporizador, calibración y corrección de postura con MediaPipe) debe funcionar sin cuenta de usuario, sin conectividad hacia Clerk y aunque la CDN externa o el servicio de autenticación sufran una interrupción.
+- **Uso anónimo garantizado (Regla 2 de `AGENTS.md`):** La funcionalidad central de Postora (temporizador, calibración y corrección de postura con MediaPipe) debe funcionar sin cuenta de usuario, sin conectividad hacia Clerk y aunque la CDN externa o el servicio de autenticación sufran una interrupción.
 - Separar la interfaz de la cuenta del núcleo del Pomodoro evita acoplar el bucle de render (`requestAnimationFrame`), el Web Worker de tiempo (`tick-worker.js`) y el procesamiento local de vídeo con librerías pesadas de interfaz o SDKs con estado de sesión.
 
 ### Directrices de aplicación
@@ -45,7 +45,7 @@ Un bloque de enfoque se vincula a la cuenta que estaba presente en el momento ex
 
 ### Directrices de aplicación
 1. `stats-session.js` captura la identidad de la cuenta al inicio del bloque.
-2. `stats-queue.js` persiste las colas de envíos pendientes en `localStorage` con claves particionadas por cuenta (`postava.stats.pending.v2:<account>`).
+2. `stats-queue.js` persiste las colas de envíos pendientes en `localStorage` con claves particionadas por cuenta (`postora.stats.pending.v2:<account>`).
 3. El endpoint `POST /api/stats/sessions` compara la cuenta esperada del bloque con el `user_id` autenticado en la sesión actual; si difieren, la petición se rechaza para impedir colisiones o reintentos cruzados.
 
 ---
@@ -67,7 +67,7 @@ En los tests unitarios ejecutados bajo el ejecutable de Node (`node --test tests
 1. **Pruebas unitarias de Node (`npm test`):**
    - Comprueban la lógica de derivación de sesiones, cookies HMAC, rechazo de identidades cruzadas y agregación de métricas sin tocar la red ni instanciar proveedores reales.
 2. **Pruebas de interfaz locales Playwright (`npm run test:ui`):**
-   - Se ejecutan con claves simuladas y `POSTAVA_MOCK_CLERK=1` (o interceptación de rutas hacia dominios de prueba).
+   - Se ejecutan con claves simuladas y `POSTORA_MOCK_CLERK=1` (o interceptación de rutas hacia dominios de prueba).
    - Validan el comportamiento de formularios, validaciones de interfaz, redirecciones de invitados (`/stats` redirige al inicio de sesión) y flujos anónimos sin realizar llamadas a la infraestructura real de Clerk.
 3. **Verificación en vivo con Clerk:**
    - La entrega real de correos de verificación o restablecimiento de contraseña y la persistencia de sesión a través de múltiples aperturas del navegador solo pueden verificarse en un entorno manual autorizado con cuentas de desarrollo específicas. Ningún test automatizado debe crear cuentas externas reales ni disparar correos (Regla 7 de `AGENTS.md`).

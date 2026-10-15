@@ -216,7 +216,7 @@ function runThemeInit({ stored, systemDark = false, storageThrows = false }) {
     localStorage: {
       getItem(key) {
         if (storageThrows) throw new Error("SecurityError");
-        assert.equal(key, "postava.theme");
+        assert.equal(key, "postora.theme");
         return stored ?? null;
       },
     },

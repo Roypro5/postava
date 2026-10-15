@@ -18,7 +18,7 @@
      - startCamera/stopCamera (getUserMedia + textos de la UI + canvas).
 
    El estado `posture` es un objeto plano que se expone como `monitor.state`:
-   app.js y window.postavaDebug lo leen y escriben directamente, como antes.
+   app.js y window.postoraDebug lo leen y escriben directamente, como antes.
 
    Callbacks (todos opcionales):
      onBadge(state, text)                  badge de estado
@@ -174,7 +174,7 @@ export function createPostureMonitor({
         delegate = "CPU";
         landmarker = await PoseLandmarker.createFromOptions(vision, options("CPU"));
       }
-      logger.info(`Postava: motor de postura listo con delegado ${delegate}.`);
+      logger.info(`Postora: motor de postura listo con delegado ${delegate}.`);
 
       engineReady = true;
       onEngineReady();

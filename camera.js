@@ -122,7 +122,7 @@ export function createCamera({
     if (stream) stopTracks(stream);
   }
 
-  /* Solo para window.postavaDebug.forceCamera: fuerza el flag sin stream real. */
+  /* Solo para window.postoraDebug.forceCamera: fuerza el flag sin stream real. */
   function forceOn(value) {
     on = value;
   }

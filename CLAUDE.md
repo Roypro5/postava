@@ -1,4 +1,4 @@
-# Postava — Contrato de Desarrollo y Guía de Agentes
+# Postora — Contrato de Desarrollo y Guía de Agentes
 
 Este archivo es la guía para **Claude Code**. Describe el catálogo de subagentes especializados disponibles en `.claude/agents/` y el flujo de trabajo recomendado para el desarrollo.
 
@@ -55,7 +55,7 @@ Usa o convoca a estos agentes según la naturaleza de la tarea:
 - **`@security-auditor`**: Audita la seguridad de endpoints, cookies de sesión, tokens de Clerk, allowlist y consultas SQL (solo lectura).
 
 ### 💻 Desarrollo e Implementación
-- **`@dev-postava`**: Desarrollador general del proyecto. Conoce a fondo la integración entre timer, MediaPipe y Clerk.
+- **`@dev-postora`**: Desarrollador general del proyecto. Conoce a fondo la integración entre timer, MediaPipe y Clerk.
 - **`@frontend-developer`**: Especialista en Vanilla JS (ESM), diseño responsive, ergonomía visual y CSS3.
 - **`@postgres-pro`**: Modelado relacional, consultas SQL optimizadas e índices para la persistencia de estadísticas.
 
@@ -73,7 +73,7 @@ Usa o convoca a estos agentes según la naturaleza de la tarea:
    - Invoca a `@product-manager` para aterrizar el requerimiento.
    - Invoca a `@planificador` o `@architect-reviewer` para diseñar la estructura sin romper lo existente.
 2. **Durante la implementación:**
-   - Si se trata de módulos o UI, usa `@dev-postava` o `@frontend-developer`.
+   - Si se trata de módulos o UI, usa `@dev-postora` o `@frontend-developer`.
    - Si se divide un archivo grande, usa `@refactoring-specialist`.
 3. **Antes de dar por cerrado un cambio:**
    - Añade cobertura con `@test-automator`.

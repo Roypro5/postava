@@ -213,7 +213,7 @@ test("initEngine: carga con delegado GPU, opciones exactas y avisa una vez", asy
     minPosePresenceConfidence: 0.5,
     minTrackingConfidence: 0.5,
   });
-  assert.deepEqual(s.logs, [["info", "Postava: motor de postura listo con delegado GPU."]]);
+  assert.deepEqual(s.logs, [["info", "Postora: motor de postura listo con delegado GPU."]]);
   assert.equal(s.monitor.isEngineReady(), true);
   assert.deepEqual(s.events, [["engineReady"]]);
 });
@@ -226,7 +226,7 @@ test("initEngine: si la GPU falla cae a CPU con las mismas opciones", async () =
   assert.deepEqual(delegates, ["GPU", "CPU"]);
   const [gpu, cpu] = s.vision.calls.createFromOptions.map((c) => c.options);
   assert.deepEqual({ ...cpu, baseOptions: { ...cpu.baseOptions, delegate: "GPU" } }, gpu);
-  assert.deepEqual(s.logs, [["info", "Postava: motor de postura listo con delegado CPU."]]);
+  assert.deepEqual(s.logs, [["info", "Postora: motor de postura listo con delegado CPU."]]);
   assert.equal(s.monitor.isEngineReady(), true);
   assert.deepEqual(s.events, [["engineReady"]]);
 });
@@ -1187,7 +1187,7 @@ test("monitor.state es un único objeto escribible con los campos originales", (
     "baseline", "smoothed", "badSince", "goodStreak", "lastAlertAt", "alerting", "showingIssue",
     "alerts", "goodMs", "badMs", "lastFrameAt", "lastSeenAt", "calibrating", "calibSamples", "calibEndsAt",
   ]);
-  // Escritura directa (como hace window.postavaDebug.setBaseline y saveSettings/loadSettings)
+  // Escritura directa (como hace window.postoraDebug.setBaseline y saveSettings/loadSettings)
   s.monitor.state.baseline = { ...BASE };
   s.monitor.state.smoothed = { ...BASE };
   s.monitor.state.lastFrameAt = s.clock.t;

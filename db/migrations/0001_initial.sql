@@ -1,4 +1,4 @@
--- 0001_initial: tabla de sesiones de estadisticas de Postava.
+-- 0001_initial: tabla de sesiones de estadisticas de Postora.
 -- Conciliado en T3.1 como migracion canonica inicial.
 -- Si la tabla ya existe en tu base, NO apliques el Up: concilia primero con
 -- pg_dump y registra esta migracion como ya aplicada (ver db/README.md).

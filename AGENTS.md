@@ -1,4 +1,4 @@
-# Postava — Reglas para agentes (Antigravity y otros)
+# Postora — Reglas para agentes (Antigravity y otros)
 
 Pomodoro con corrección de postura en tiempo real, en el navegador.
 
@@ -92,7 +92,7 @@ Están en `.agents/agents/` (se crean en la tarea T0.2 del plan, a partir de
 
 - **Para pensar, `model: pro`:** `planificador`, `product-manager`, `architect-reviewer`,
   `security-auditor` y `revisor-proyectos`.
-- **Para ejecutar, `model: flash`:** `dev-postava`, `frontend-developer`,
+- **Para ejecutar, `model: flash`:** `dev-postora`, `frontend-developer`,
   `test-automator`, `refactoring-specialist`, `performance-engineer` y `postgres-pro`.
 
 `.claude/agents/` y `CLAUDE.md` son de Claude Code: no se borran. `AGENTS.md` es la única

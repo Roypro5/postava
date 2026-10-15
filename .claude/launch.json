@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "postava",
+      "name": "postora",
       "runtimeExecutable": "C:\\Users\\luis.soto\\AppData\\Local\\nodejs\\node.exe",
       "runtimeArgs": ["server.mjs", "5173"],
       "port": 5173,

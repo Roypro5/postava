@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: postava
+    name: postora
     runtime: node
     plan: free
     region: ohio

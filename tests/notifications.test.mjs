@@ -11,22 +11,22 @@ import {
 
 test("phaseEndNotification: textos y tag por fase", () => {
   assert.deepEqual(phaseEndNotification("break"), {
-    title: "Postava",
+    title: "Postora",
     body: "Fase de enfoque terminada. Toca descansar.",
-    tag: "postava-phase",
+    tag: "postora-phase",
   });
   assert.deepEqual(phaseEndNotification("focus"), {
-    title: "Postava",
+    title: "Postora",
     body: "Descanso terminado. Toca volver al enfoque.",
-    tag: "postava-phase",
+    tag: "postora-phase",
   });
 });
 
 test("postureNotification usa el texto y su tag", () => {
   assert.deepEqual(postureNotification("Endereza la espalda"), {
-    title: "Postava",
+    title: "Postora",
     body: "Endereza la espalda",
-    tag: "postava-posture",
+    tag: "postora-posture",
   });
 });
 
@@ -69,7 +69,7 @@ function fakeEnv(permission, { throwOnCreate = false } = {}) {
 
 test("showSystemNotification crea la notificación y el clic enfoca y cierra", () => {
   const { env, created } = fakeEnv("granted");
-  showSystemNotification({ title: "Postava", body: "x", tag: "t", renotify: true }, true, env);
+  showSystemNotification({ title: "Postora", body: "x", tag: "t", renotify: true }, true, env);
   assert.equal(created.length, 1);
   assert.deepEqual(created[0].opts, { body: "x", tag: "t", renotify: true });
   created[0].onclick();
