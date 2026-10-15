@@ -160,10 +160,30 @@ for (const isProduction of [true, false]) {
 /** Coincidencia de ruta de CSP: con "/" final es prefijo, si no, exacta; el origen siempre debe coincidir. */
 function cspAllowsUrl(sources, url) {
   const target = new URL(url);
+  const targetPort = target.port || (target.protocol === "https:" ? "443" : "80");
   return sources.some((source) => {
     if (!source.startsWith("https://")) return false;
-    const src = new URL(source);
-    if (src.origin !== target.origin) return false;
+    const hasWildcardPort = /:\*(?:\/.*)?$/.test(source);
+    let src;
+    try {
+      src = new URL(source.replace(/:\*(?=\/|$)/, ""));
+    } catch {
+      return false;
+    }
+    if (src.protocol !== target.protocol) return false;
+
+    if (src.hostname.startsWith("*.")) {
+      const suffix = src.hostname.slice(1);
+      if (!target.hostname.endsWith(suffix)) return false;
+    } else if (src.hostname !== target.hostname) {
+      return false;
+    }
+
+    if (!hasWildcardPort) {
+      const srcPort = src.port || (src.protocol === "https:" ? "443" : "80");
+      if (srcPort !== targetPort) return false;
+    }
+
     if (src.pathname === "/" && !source.endsWith("/")) return true; // fuente de solo origen
     return src.pathname.endsWith("/") ? target.pathname.startsWith(src.pathname) : target.pathname === src.pathname;
   });
@@ -178,7 +198,8 @@ test("cada import() remoto de app.js cae en el script-src que se aplica en produ
   }
 });
 
-test("la CSP permite Cloudflare Turnstile y Clerk bot-protection (bootstrap.js)", () => {
+test("la CSP permite Cloudflare Turnstile y Clerk bot-protection (bootstrap.js y subdominios dinámicos)", () => {
+  const dynamicClientHost = "https://*.client.protect.clerk.com:*";
   for (const isProduction of [true, false]) {
     const csp = buildContentSecurityPolicy({ isProduction });
     const scriptSrc = directive(csp, "script-src");
@@ -189,6 +210,30 @@ test("la CSP permite Cloudflare Turnstile y Clerk bot-protection (bootstrap.js)"
     assert.ok(frameSrc.includes("https://challenges.cloudflare.com"), "Turnstile en frame-src");
     assert.ok(scriptSrc.includes("https://cdn.protect.clerk.com"), "Clerk bot-protection en script-src");
     assert.ok(connectSrc.includes("https://cdn.protect.clerk.com"), "Clerk bot-protection en connect-src");
+    assert.ok(scriptSrc.includes(dynamicClientHost), "subdominios cliente Clerk en script-src");
+    assert.ok(connectSrc.includes(dynamicClientHost), "subdominios cliente Clerk en connect-src");
+
+    // No debe aparecer en ninguna otra directiva
+    for (const dirName of [
+      "default-src",
+      "base-uri",
+      "object-src",
+      "form-action",
+      "frame-ancestors",
+      "style-src",
+      "font-src",
+      "img-src",
+      "frame-src",
+      "worker-src",
+      "manifest-src",
+    ]) {
+      const values = directive(csp, dirName);
+      assert.ok(
+        !values.includes(dynamicClientHost),
+        `${dynamicClientHost} no debe aparecer en ${dirName}`,
+      );
+    }
+
     assert.ok(
       cspAllowsUrl(scriptSrc, "https://cdn.protect.clerk.com/bootstrap.js"),
       "bootstrap.js de Clerk debe estar permitido por script-src",
@@ -196,6 +241,18 @@ test("la CSP permite Cloudflare Turnstile y Clerk bot-protection (bootstrap.js)"
     assert.ok(
       cspAllowsUrl(scriptSrc, "https://cdn.protect.clerk.com//bootstrap.js"),
       "//bootstrap.js (con doble barra de Clerk) debe estar permitido por script-src",
+    );
+    assert.ok(
+      cspAllowsUrl(scriptSrc, "https://1-test-l.client.protect.clerk.com/instancia/loader.js"),
+      "loader.js en subdominio cliente de Clerk debe estar permitido por script-src",
+    );
+    assert.ok(
+      cspAllowsUrl(connectSrc, "https://1-test-p.client.protect.clerk.com/instancia/probe"),
+      "probe en subdominio cliente de Clerk debe estar permitido por connect-src",
+    );
+    assert.ok(
+      cspAllowsUrl(connectSrc, "https://1-test-p.client.protect.clerk.com:8443/instancia/probe"),
+      "probe en puerto 8443 en subdominio cliente de Clerk debe estar permitido por connect-src",
     );
   }
 });
@@ -325,6 +382,7 @@ test("buildContentSecurityPolicy: el origen de Clerk va solo a connect-src, y se
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/",
       "https://storage.googleapis.com/mediapipe-models/",
       "https://cdn.protect.clerk.com",
+      "https://*.client.protect.clerk.com:*",
     ]) {
       assert.ok(directive(csp, "connect-src").includes(kept), kept);
     }

@@ -124,6 +124,22 @@ test("producción: la CSP enforced no bloquea MediaPipe (módulo, WASM y modelo)
   expect(cspHeader).toContain("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
   expect(cspHeader).toContain("https://cdn.protect.clerk.com");
   expect(cspHeader).toContain("https://challenges.cloudflare.com");
+  const dynamicClientHost = "https://*.client.protect.clerk.com:*";
+  expect(cspHeader).toContain(dynamicClientHost);
+
+  const getDirective = (header, name) => {
+    const match = header.split(";").map((p) => p.trim()).find((p) => p.startsWith(`${name} `));
+    return match ? match.split(/\s+/).slice(1) : [];
+  };
+  expect(getDirective(cspHeader, "script-src")).toContain(dynamicClientHost);
+  expect(getDirective(cspHeader, "connect-src")).toContain(dynamicClientHost);
+  for (const name of [
+    "default-src", "style-src", "font-src", "img-src", "frame-src",
+    "worker-src", "base-uri", "object-src", "form-action", "frame-ancestors", "manifest-src",
+  ]) {
+    expect(getDirective(cspHeader, name)).not.toContain(dynamicClientHost);
+  }
+
   expect(cspHeader).not.toContain("fonts.googleapis.com");
   expect(cspHeader).not.toContain("fonts.gstatic.com");
   expect(cspHeader).toContain("style-src 'self'");
